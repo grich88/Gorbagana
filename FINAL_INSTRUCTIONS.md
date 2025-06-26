@@ -254,7 +254,7 @@ This project showcases the potential of blockchain gaming with a meaningful envi
 - **Node Version**: Ensure Node.js 18+ is installed
 
 ### Deployment Issues
-- **Vercel Build Errors**: Check build logs and fix TypeScript errors
+- **Build Errors**: Check build logs and fix TypeScript errors
 - **Wallet Connection**: Ensure correct network configuration
 - **RPC Issues**: Verify Gorbagana endpoint is accessible
 
@@ -275,7 +275,7 @@ This project showcases the potential of blockchain gaming with a meaningful envi
 - **Gorbagana Faucet**: `gorbaganachain.xyz`
 - **Gorbagana RPC**: `https://gorchain.wstf.io`
 - **Phantom Wallet**: `phantom.app`
-- **Vercel Deployment**: `vercel.com`
+- **Netlify Deployment**: `netlify.com`
 
 ## **🎯 Success Metrics**
 
