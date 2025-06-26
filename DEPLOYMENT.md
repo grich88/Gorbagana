@@ -145,7 +145,7 @@ cd frontend
 npm run build
 
 # Deploy to your preferred hosting service:
-# - Vercel: vercel deploy
+# - Netlify: netlify deploy --prod --dir .next
 # - Netlify: netlify deploy
 # - GitHub Pages: npm run export
 ```
