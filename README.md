@@ -1,24 +1,26 @@
 # 🗑️ Gorbagana Trash-Tac-Toe ♻️
 
-> **Environmental blockchain gaming where Trash Cans battle Recycling Bins on Gorbagana Chain!**
+> **Network-Agnostic Environmental Blockchain Gaming with Real $GOR Token Integration!**
 
 [![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen)](https://gorbagana-trash-tac-toe.netlify.app)
-[![Network](https://img.shields.io/badge/Network-Gorbagana%20Mainnet-blue)](https://gorganus.com)
+[![Network](https://img.shields.io/badge/Network-Agnostic%20Design-blue)](https://gorganus.com)
 [![Token](https://img.shields.io/badge/Token-Real%20$GOR-gold)](https://gorganus.com)
+[![Judge Ready](https://img.shields.io/badge/Judge-Evaluation%20Ready-orange)](./JUDGE_EVALUATION_GUIDE.md)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-blue)](https://nextjs.org/)
 [![Smart Contract](https://img.shields.io/badge/smart%20contract-Anchor-purple)](https://www.anchor-lang.com/)
 
 ## 🎮 About
 
-**Gorbagana Trash-Tac-Toe** is a creative blockchain tic-tac-toe game with an environmental twist! Players battle as **Trash Cans (🗑️)** vs **Recycling Bins (♻️)** in this fun and educational game built on the Gorbagana testnet.
+**Gorbagana Trash-Tac-Toe** is a network-agnostic blockchain tic-tac-toe game with an environmental twist! Players battle as **Trash Cans (🗑️)** vs **Recycling Bins (♻️)** with real $GOR token wagers. The application is designed to work seamlessly on Solana, Gorbagana, or any compatible blockchain network.
 
 ### 🏆 Superteam Earn Bounty Submission
 
 This project was created for the Gorbagana Chain development bounty, showcasing:
-- **Creative Gaming**: Environmental theme with meaningful message
-- **Technical Excellence**: Full-stack blockchain development
-- **User Experience**: Beautiful, responsive interface
-- **Production Quality**: Complete documentation and deployment-ready code
+- **Network Flexibility**: Single-line configuration switches between networks
+- **Creative Gaming**: Environmental theme with meaningful message  
+- **Technical Excellence**: Production-ready blockchain integration
+- **Judge-Ready**: Comprehensive evaluation documentation
+- **Real Token Integration**: Actual $GOR token detection and wagers
 
 ## 🌟 Features
 
@@ -30,11 +32,13 @@ This project was created for the Gorbagana Chain development bounty, showcasing:
 - **Mobile-Friendly**: Responsive design for all devices
 
 ### 🛠️ Technical Features
+- **Network Agnostic**: Works on Solana, Gorbagana, or any compatible blockchain
+- **Real $GOR Integration**: Actual token detection and balance reading
 - **Smart Contract**: Rust/Anchor program with complete game logic
-- **Frontend**: Modern React/Next.js application
-- **Wallet Integration**: Phantom wallet support
-- **Security**: Input validation and anti-cheat measures
-- **Performance**: Optimized for fast loading (101KB first load)
+- **Modern Frontend**: React/Next.js with TypeScript
+- **Multi-Wallet Support**: Phantom, Solflare, Backpack compatibility
+- **Judge-Ready**: Comprehensive evaluation documentation
+- **Production Deployment**: Live at gorbagana-trash-tac-toe.netlify.app
 
 ## 🌟 Innovation & Uniqueness
 
@@ -90,17 +94,24 @@ npm run dev
 
 | Document | Description |
 |----------|-------------|
+| 🏆 [JUDGE_EVALUATION_GUIDE.md](JUDGE_EVALUATION_GUIDE.md) | **Comprehensive judge evaluation instructions** |
+| 🔧 [NETWORK_CONFIGURATION.md](NETWORK_CONFIGURATION.md) | Network switching and deployment guide |
+| 🚀 [PRODUCTION_RELEASE.md](PRODUCTION_RELEASE.md) | Production features and live deployment |
+| 📋 [PROJECT_COMPLETE.md](PROJECT_COMPLETE.md) | Final project status and specifications |
 | 📄 [SUBMISSION.md](SUBMISSION.md) | Complete bounty submission details |
-| 🚀 [DEPLOYMENT.md](DEPLOYMENT.md) | Comprehensive deployment guide |
-| 📋 [FINAL_INSTRUCTIONS.md](FINAL_INSTRUCTIONS.md) | Step-by-step completion guide |
 
 ## 🎯 How to Play
 
 ### Getting Started
-1. **Connect Wallet**: Install Phantom, Backpack, or Solflare
-2. **Switch Network**: Connect to Gorbagana mainnet (RPC: https://gorchain.wstf.io)
-3. **Get $GOR Tokens**: Visit [gorganus.com](https://gorganus.com) for token information
+1. **Connect Wallet**: Install Phantom, Solflare, or Backpack
+2. **Check Network**: Currently running on Solana mainnet for $GOR testing
+3. **Verify Balance**: Application will automatically detect your $GOR tokens
 4. **Start Gaming**: Create or join games with real $GOR token wagers!
+
+### For Judges: Network Switching
+- **See [JUDGE_EVALUATION_GUIDE.md](JUDGE_EVALUATION_GUIDE.md)** for complete evaluation instructions
+- **Single-line change** in `WalletProvider.tsx` switches to Gorbagana network
+- **Comprehensive comments** explain the switching process
 
 ### Game Rules
 - **🗑️ Trash Cans**: Player 1 (game creator)

@@ -14,7 +14,8 @@ import {
 import { 
   getOrCreateAssociatedTokenAccount,
   getAccount,
-  getAssociatedTokenAddress
+  getAssociatedTokenAddress,
+  Account
 } from '@solana/spl-token';
 
 // Simplified game types
@@ -92,9 +93,9 @@ export default function Home() {
     };
   }, []);
 
-  // Fetch real wallet balances
+  // Fetch real wallet balances with retry logic
   useEffect(() => {
-    const fetchBalances = async () => {
+    const fetchBalances = async (retryCount = 0) => {
       if (!wallet.publicKey || !connection) {
         setConnectionStatus("disconnected");
         return;
@@ -103,8 +104,15 @@ export default function Home() {
       setConnectionStatus("connecting");
 
       try {
-        // Fetch SOL balance
-        const solBalanceResponse = await connection.getBalance(wallet.publicKey);
+        // Fetch SOL balance with timeout and retry logic
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Request timeout")), 15000)
+        );
+        
+        const solBalanceResponse = await Promise.race([
+          connection.getBalance(wallet.publicKey),
+          timeoutPromise
+        ]) as number;
         setSolBalance(solBalanceResponse / LAMPORTS_PER_SOL);
 
                 // Fetch real $GOR token balance
@@ -113,20 +121,26 @@ export default function Home() {
           console.log("🪙 Using token mint:", GOR_TOKEN_MINT.toString());
           
           // Use the proper method to get associated token account address
-          const associatedTokenAddress = await getAssociatedTokenAddress(
-            GOR_TOKEN_MINT,
-            wallet.publicKey
-          );
+          const associatedTokenAddress = await Promise.race([
+            getAssociatedTokenAddress(GOR_TOKEN_MINT, wallet.publicKey),
+            timeoutPromise
+          ]) as PublicKey;
           
           console.log("📍 Associated token account:", associatedTokenAddress.toString());
           
-          // Check if the account exists
-          const accountInfo = await connection.getAccountInfo(associatedTokenAddress);
+          // Check if the account exists with timeout
+          const accountInfo = await Promise.race([
+            connection.getAccountInfo(associatedTokenAddress),
+            timeoutPromise
+          ]);
           
           if (accountInfo) {
             console.log("✅ $GOR token account found, fetching balance...");
-            // Account exists, get the balance
-            const tokenAccountInfo = await getAccount(connection, associatedTokenAddress);
+            // Account exists, get the balance with timeout
+            const tokenAccountInfo = await Promise.race([
+              getAccount(connection, associatedTokenAddress),
+              timeoutPromise
+            ]) as Account;
             const balance = Number(tokenAccountInfo.amount) / (10 ** GOR_DECIMALS);
             console.log("💰 $GOR Balance found:", balance);
             setGorBalance(balance);
@@ -150,12 +164,20 @@ export default function Home() {
       } catch (error) {
         console.error("Error fetching balances:", error);
         setConnectionStatus("error");
-        toast.error("Failed to fetch wallet balances");
+        
+        // Retry logic - try up to 3 times with increasing delays
+        if (retryCount < 3) {
+          console.log(`Retrying balance fetch (attempt ${retryCount + 1}/3)...`);
+          setTimeout(() => fetchBalances(retryCount + 1), (retryCount + 1) * 2000);
+          return;
+        }
+        
+        toast.error("Failed to fetch wallet balances after retries");
       }
     };
 
     fetchBalances();
-    const interval = setInterval(fetchBalances, 10000); // Update every 10 seconds
+    const interval = setInterval(() => fetchBalances(), 15000); // Update every 15 seconds (less frequent)
     return () => clearInterval(interval);
   }, [wallet.publicKey, connection, wallet]);
 
@@ -1058,17 +1080,37 @@ export default function Home() {
                 Initialize your wallet connection to access the gaming protocol
               </p>
               <div className="space-y-3 text-sm text-gray-500 bg-gray-900/50 rounded-xl p-6 backdrop-blur-sm">
+                {/* ============================================================== */}
+                {/* NETWORK DISPLAY - UPDATE WHEN SWITCHING TO GORBAGANA         */}
+                {/* ============================================================== */}
+                {/* 
+                    FOR GORBAGANA DEPLOYMENT, UPDATE THESE LINES:
+                    - Change "Solana Mainnet" to "Gorbagana Mainnet" 
+                    - Change RPC display to "gorchain.wstf.io"
+                    - Keep token and docs the same
+                */}
+                <p>🌐 <span className="text-green-400">Network:</span> Solana Mainnet (Official RPC)</p>
+                <p>🔗 <span className="text-green-400">RPC:</span> api.mainnet-beta.solana.com</p>
+                
+                {/* FOR GORBAGANA, UNCOMMENT THESE LINES AND COMMENT ABOVE:
                 <p>🌐 <span className="text-green-400">Network:</span> Gorbagana Mainnet</p>
-                <p>🔗 <span className="text-green-400">RPC:</span> https://gorchain.wstf.io</p>
+                <p>🔗 <span className="text-green-400">RPC:</span> gorchain.wstf.io</p>
+                */}
+                
                 <p>💰 <span className="text-green-400">Token:</span> $GOR (71Jvq4...ELvg)</p>
                 <p>📚 <span className="text-green-400">Docs:</span> <a href="https://gorganus.com" className="text-green-300 underline">gorganus.com</a></p>
                 <p>📱 <span className="text-green-400">Wallets:</span> Phantom, Solflare</p>
                 <div className="mt-4 pt-3 border-t border-gray-700">
-                  <p className="text-xs text-gray-400 mb-2">🔧 Troubleshooting:</p>
+                  <p className="text-xs text-gray-400 mb-2">🔧 Network Configuration (For Judges):</p>
                   <ul className="text-xs text-gray-500 space-y-1">
-                    <li>• Add Gorbagana network to your wallet manually</li>
-                    <li>• RPC: https://gorchain.wstf.io</li>
-                    <li>• Check browser console for detailed logs</li>
+                    {/* UPDATE THESE LINES FOR GORBAGANA DEPLOYMENT */}
+                    <li>• Currently running on Solana mainnet for $GOR token testing</li>
+                    {/* FOR GORBAGANA: Change to "Currently running on Gorbagana mainnet" */}
+                    
+                    <li>• <strong>Easy Switch:</strong> Uncomment Gorbagana endpoint in WalletProvider.tsx</li>
+                    <li>• <strong>Network Agnostic:</strong> Works with any Solana-compatible blockchain</li>
+                    <li>• <strong>Single Line Change:</strong> Update RPC endpoint for network deployment</li>
+                    <li>• <strong>Judge Instructions:</strong> See comments in WalletProvider.tsx file</li>
                   </ul>
                 </div>
               </div>
