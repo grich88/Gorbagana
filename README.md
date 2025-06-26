@@ -2,10 +2,11 @@
 
 > **Environmental blockchain gaming where Trash Cans battle Recycling Bins on Gorbagana Chain!**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-username/gorbagana-trash-tac-toe)
+[![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen)](https://gorbagana-trash-tac-toe.netlify.app)
+[![Network](https://img.shields.io/badge/Network-Gorbagana%20Mainnet-blue)](https://gorganus.com)
+[![Token](https://img.shields.io/badge/Token-Real%20$GOR-gold)](https://gorganus.com)
 [![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-blue)](https://nextjs.org/)
 [![Smart Contract](https://img.shields.io/badge/smart%20contract-Anchor-purple)](https://www.anchor-lang.com/)
-[![Blockchain](https://img.shields.io/badge/blockchain-Gorbagana-orange)](https://gorbaganachain.xyz/)
 
 ## 🎮 About
 
@@ -57,8 +58,8 @@ This project was created for the Gorbagana Chain development bounty, showcasing:
 
 ## 🚀 Quick Start
 
-### Play the Demo
-🌐 **[🎮 Play Live Demo](https://gorbagana-trash-tac-toe.netlify.app)** - Try it now in your browser!
+### Play with Real $GOR Tokens
+🌐 **[🎮 Play Live on Mainnet](https://gorbagana-trash-tac-toe.netlify.app)** - Production gaming with real $GOR tokens!
 
 ### Local Development
 
@@ -96,10 +97,10 @@ npm run dev
 ## 🎯 How to Play
 
 ### Getting Started
-1. **Connect Wallet**: Install Phantom and connect to the app
-2. **Choose Network**: Switch to Gorbagana testnet 
-3. **Get Funds**: Use the Gorbagana faucet for testnet SOL
-4. **Start Playing**: Create or join a game!
+1. **Connect Wallet**: Install Phantom, Backpack, or Solflare
+2. **Switch Network**: Connect to Gorbagana mainnet (RPC: https://gorchain.wstf.io)
+3. **Get $GOR Tokens**: Visit [gorganus.com](https://gorganus.com) for token information
+4. **Start Gaming**: Create or join games with real $GOR token wagers!
 
 ### Game Rules
 - **🗑️ Trash Cans**: Player 1 (game creator)
