@@ -14,8 +14,7 @@ import {
 import { 
   getOrCreateAssociatedTokenAccount,
   getAccount,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID
+  getAssociatedTokenAddress
 } from '@solana/spl-token';
 
 // Simplified game types
@@ -58,6 +57,41 @@ export default function Home() {
   const [solBalance, setSolBalance] = useState<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<string>("disconnected");
 
+  // Fix modal scroll issues
+  useEffect(() => {
+    // Listen for wallet modal events
+    const handleModalOpen = () => {
+      document.body.classList.add('wallet-adapter-modal-open');
+    };
+    
+    const handleModalClose = () => {
+      document.body.classList.remove('wallet-adapter-modal-open');
+    };
+
+    // Check for modal presence periodically
+    const checkModal = () => {
+      const modal = document.querySelector('.wallet-adapter-modal');
+      if (modal) {
+        const isVisible = modal.getAttribute('aria-hidden') !== 'true';
+        if (isVisible) {
+          handleModalOpen();
+        } else {
+          handleModalClose();
+        }
+      } else {
+        handleModalClose();
+      }
+    };
+
+    const intervalId = setInterval(checkModal, 100);
+
+    // Cleanup
+    return () => {
+      clearInterval(intervalId);
+      handleModalClose();
+    };
+  }, []);
+
   // Fetch real wallet balances
   useEffect(() => {
     const fetchBalances = async () => {
@@ -78,26 +112,21 @@ export default function Home() {
           console.log("🔍 Checking $GOR balance for:", wallet.publicKey.toString());
           console.log("🪙 Using token mint:", GOR_TOKEN_MINT.toString());
           
-          // Calculate the associated token account address
-          const { PublicKey: PublicKeyClass } = await import('@solana/web3.js');
-          const associatedTokenAddress = await PublicKeyClass.findProgramAddress(
-            [
-              wallet.publicKey.toBuffer(),
-              TOKEN_PROGRAM_ID.toBuffer(),
-              GOR_TOKEN_MINT.toBuffer(),
-            ],
-            ASSOCIATED_TOKEN_PROGRAM_ID
+          // Use the proper method to get associated token account address
+          const associatedTokenAddress = await getAssociatedTokenAddress(
+            GOR_TOKEN_MINT,
+            wallet.publicKey
           );
           
-          console.log("📍 Associated token account:", associatedTokenAddress[0].toString());
+          console.log("📍 Associated token account:", associatedTokenAddress.toString());
           
           // Check if the account exists
-          const accountInfo = await connection.getAccountInfo(associatedTokenAddress[0]);
+          const accountInfo = await connection.getAccountInfo(associatedTokenAddress);
           
           if (accountInfo) {
             console.log("✅ $GOR token account found, fetching balance...");
             // Account exists, get the balance
-            const tokenAccountInfo = await getAccount(connection, associatedTokenAddress[0]);
+            const tokenAccountInfo = await getAccount(connection, associatedTokenAddress);
             const balance = Number(tokenAccountInfo.amount) / (10 ** GOR_DECIMALS);
             console.log("💰 $GOR Balance found:", balance);
             setGorBalance(balance);
@@ -595,7 +624,50 @@ export default function Home() {
             {/* Wallet Connection - Gorganus Style */}
             <div className="mb-8">
               {!wallet.connected ? (
-                <WalletMultiButton className="!bg-gradient-to-r !from-green-600 !to-emerald-600 !hover:from-green-700 !hover:to-emerald-700 !border-green-500 !text-white !font-bold !px-8 !py-3 !rounded-xl !shadow-lg !shadow-green-900/50 !transition-all !duration-300" />
+                <div className="space-y-4">
+                  <WalletMultiButton className="!bg-gradient-to-r !from-green-600 !to-emerald-600 !hover:from-green-700 !hover:to-emerald-700 !border-green-500 !text-white !font-bold !px-8 !py-3 !rounded-xl !shadow-lg !shadow-green-900/50 !transition-all !duration-300" />
+                  
+                  {/* Backup manual wallet selection */}
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400 mb-2">Having issues? Try direct wallet connection:</p>
+                    <div className="flex justify-center gap-3">
+                      <button
+                        onClick={() => {
+                          try {
+                            const phantom = (window as { phantom?: { solana?: { isPhantom?: boolean; connect?: () => void } } })?.phantom?.solana;
+                            if (phantom?.isPhantom) {
+                              phantom.connect?.();
+                            } else {
+                              window.open('https://phantom.app/', '_blank');
+                            }
+                          } catch (error) {
+                            console.error('Phantom connection error:', error);
+                          }
+                        }}
+                        className="text-xs px-3 py-1 bg-purple-600/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-600/30 transition-colors"
+                      >
+                        Phantom
+                      </button>
+                      <button
+                        onClick={() => {
+                          try {
+                            const solflare = (window as { solflare?: { connect?: () => void } })?.solflare;
+                            if (solflare) {
+                              solflare.connect?.();
+                            } else {
+                              window.open('https://solflare.com/', '_blank');
+                            }
+                          } catch (error) {
+                            console.error('Solflare connection error:', error);
+                          }
+                        }}
+                        className="text-xs px-3 py-1 bg-orange-600/20 border border-orange-500/30 rounded-lg text-orange-300 hover:bg-orange-600/30 transition-colors"
+                      >
+                        Solflare
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="flex items-center justify-center gap-4">
                   <div className="flex items-center gap-3">
@@ -639,6 +711,41 @@ export default function Home() {
                   🌐 Token: 71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg
                 </p>
                 <div className="flex justify-center gap-4">
+                  <button
+                    onClick={async () => {
+                      if (!wallet.publicKey || !connection) return;
+                      setConnectionStatus("connecting");
+                      try {
+                        // Manual balance refresh for debugging
+                        const solBalanceResponse = await connection.getBalance(wallet.publicKey);
+                        setSolBalance(solBalanceResponse / LAMPORTS_PER_SOL);
+                        
+                        const associatedTokenAddress = await getAssociatedTokenAddress(
+                          GOR_TOKEN_MINT,
+                          wallet.publicKey
+                        );
+                        
+                        const accountInfo = await connection.getAccountInfo(associatedTokenAddress);
+                        if (accountInfo) {
+                          const tokenAccountInfo = await getAccount(connection, associatedTokenAddress);
+                          const balance = Number(tokenAccountInfo.amount) / (10 ** GOR_DECIMALS);
+                          setGorBalance(balance);
+                          toast.success(`🔄 Refreshed! Found ${balance.toFixed(2)} $GOR`);
+                        } else {
+                          setGorBalance(0);
+                          toast.error("No $GOR token account found");
+                        }
+                        setConnectionStatus("connected");
+                      } catch (error) {
+                        console.error("Manual refresh error:", error);
+                        setConnectionStatus("error");
+                        toast.error("Refresh failed: " + (error as Error).message);
+                      }
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 underline"
+                  >
+                    🔄 Refresh Balance
+                  </button>
                   <button
                     onClick={() => {
                       // Clear all localStorage games
