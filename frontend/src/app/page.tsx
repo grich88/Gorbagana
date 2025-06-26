@@ -94,8 +94,8 @@ export default function Home() {
   }, []);
 
   // Fetch real wallet balances with improved error handling
-  useEffect(() => {
-    const fetchBalances = async (retryCount = 0) => {
+  // Manual balance fetching function (used by refresh button only)
+  const fetchBalances = async (retryCount = 0) => {
       if (!wallet.publicKey || !connection) {
         setConnectionStatus("disconnected");
         return;
@@ -203,10 +203,20 @@ export default function Home() {
       }
     };
 
-    fetchBalances();
-    const interval = setInterval(() => fetchBalances(), 60000); // Update every 60 seconds (very conservative to avoid rate limits)
-    return () => clearInterval(interval);
-  }, [wallet.publicKey, connection, wallet]);
+  // Set connection status based on wallet state (no automatic balance fetching)
+  useEffect(() => {
+    // Manual-only balance fetching - NO automatic calls to avoid 403 errors
+    // Users must click "🔄 Refresh Balance" button to update balances
+    if (!wallet.publicKey || !connection) {
+      setConnectionStatus("disconnected");
+      setSolBalance(0);
+      setGorBalance(0);
+      return;
+    }
+    
+    // Set status to manual when wallet connects (no auto-fetch)
+    setConnectionStatus("manual");
+  }, [wallet.publicKey, connection]);
 
   // Create escrow account for game wager
   const createEscrowAccount = async (wagerAmount: number) => {
@@ -723,6 +733,7 @@ export default function Home() {
                     <div className={`w-2 h-2 rounded-full ${
                       connectionStatus === "connected" ? "bg-green-400" : 
                       connectionStatus === "connecting" ? "bg-yellow-400 animate-pulse" : 
+                      connectionStatus === "manual" ? "bg-blue-400" :
                       connectionStatus === "error" ? "bg-red-400" : "bg-gray-400"
                     }`}></div>
                     <div className="text-green-300 font-medium">
@@ -753,9 +764,16 @@ export default function Home() {
                     <span className="text-purple-300 font-bold">{solBalance.toFixed(4)} SOL</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500">
-                  Real $GOR token balances from Gorbagana blockchain
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">
+                    Real $GOR token balances from Gorbagana blockchain
+                  </p>
+                  {connectionStatus === "manual" && (
+                    <p className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1">
+                                             🔵 Manual Mode: Click &quot;🔄 Refresh Balance&quot; to update balances (avoids RPC rate limits)
+                    </p>
+                  )}
+                </div>
                 <p className="text-xs text-green-400">
                   🌐 Token: 71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg
                 </p>
@@ -763,32 +781,10 @@ export default function Home() {
                   <button
                     onClick={async () => {
                       if (!wallet.publicKey || !connection) return;
-                      setConnectionStatus("connecting");
-                      try {
-                        // Manual balance refresh for debugging
-                        const solBalanceResponse = await connection.getBalance(wallet.publicKey);
-                        setSolBalance(solBalanceResponse / LAMPORTS_PER_SOL);
-                        
-                        const associatedTokenAddress = await getAssociatedTokenAddress(
-                          GOR_TOKEN_MINT,
-                          wallet.publicKey
-                        );
-                        
-                        const accountInfo = await connection.getAccountInfo(associatedTokenAddress);
-                        if (accountInfo) {
-                          const tokenAccountInfo = await getAccount(connection, associatedTokenAddress);
-                          const balance = Number(tokenAccountInfo.amount) / (10 ** GOR_DECIMALS);
-                          setGorBalance(balance);
-                          toast.success(`🔄 Refreshed! Found ${balance.toFixed(2)} $GOR`);
-                        } else {
-                          setGorBalance(0);
-                          toast.error("No $GOR token account found");
-                        }
-                        setConnectionStatus("connected");
-                      } catch (error) {
-                        console.error("Manual refresh error:", error);
-                        setConnectionStatus("error");
-                        toast.error("Refresh failed: " + (error as Error).message);
+                      await fetchBalances();
+                      // Return to manual mode after refresh
+                      if (connectionStatus === "connected") {
+                        setConnectionStatus("manual");
                       }
                     }}
                     className="text-xs text-blue-400 hover:text-blue-300 underline"
