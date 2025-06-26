@@ -40,3 +40,5 @@ test-ledger/
 # Temporary files
 *.tmp
 *.temp 
+# Local Netlify folder
+.netlify

@@ -6,7 +6,7 @@ Complete blockchain-based tic-tac-toe game implementation on Gorbagana testnet w
 ## 🔗 **Links & Deployment**
 
 ### Live Demo
-- **Frontend URL**: `[UPDATE AFTER VERCEL DEPLOYMENT]`
+- **Frontend URL**: https://gorbagana-trash-tac-toe.netlify.app
 - **GitHub Repository**: https://github.com/grich88/Gorbagana
 - **Demo Mode**: ✅ Fully functional without wallet connection
 
@@ -174,7 +174,7 @@ This project represents a complete, production-ready blockchain gaming applicati
 - **Completeness**: Full documentation and deployment guides
 
 **Repository**: https://github.com/grich88/Gorbagana
-**Demo**: `[UPDATE WITH VERCEL URL]`
+**Demo**: https://gorbagana-trash-tac-toe.netlify.app
 
 ---
 

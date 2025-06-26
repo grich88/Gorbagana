@@ -38,9 +38,7 @@ This project was created for the Gorbagana Chain development bounty, showcasing:
 ## 🚀 Quick Start
 
 ### Play the Demo
-🌐 **[Live Demo - Update after Vercel deployment](https://gorbagana-trash-tac-toe.vercel.app)** - Try it now in your browser!
-
-> **Deploy Instructions**: Run `vercel login` then `vercel --yes` in the `frontend/` directory, then update this URL.
+🌐 **[🎮 Play Live Demo](https://gorbagana-trash-tac-toe.netlify.app)** - Try it now in your browser!
 
 ### Local Development
 
@@ -219,7 +217,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 🔗 Links
 
-- **Live Demo**: [UPDATE WITH YOUR VERCEL URL]
+- **Live Demo**: https://gorbagana-trash-tac-toe.netlify.app
 - **Gorbagana Chain**: https://gorbaganachain.xyz/
 - **Phantom Wallet**: https://phantom.app/
 - **Superteam**: https://superteam.fun/
