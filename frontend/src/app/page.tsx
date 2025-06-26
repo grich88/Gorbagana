@@ -203,10 +203,8 @@ export default function Home() {
       }
     };
 
-  // Set connection status based on wallet state (no automatic balance fetching)
+  // Set connection status and demo balances (no RPC calls to avoid 403 errors)
   useEffect(() => {
-    // Manual-only balance fetching - NO automatic calls to avoid 403 errors
-    // Users must click "🔄 Refresh Balance" button to update balances
     if (!wallet.publicKey || !connection) {
       setConnectionStatus("disconnected");
       setSolBalance(0);
@@ -214,8 +212,11 @@ export default function Home() {
       return;
     }
     
-    // Set status to manual when wallet connects (no auto-fetch)
-    setConnectionStatus("manual");
+    // Demo mode: Set realistic demo balances without RPC calls
+    setConnectionStatus("demo");
+    setSolBalance(0.5); // Demo SOL balance
+    setGorBalance(1000); // Demo $GOR balance for testing
+    toast.success("🎮 Demo Mode: Using simulated balances for stable gameplay!");
   }, [wallet.publicKey, connection]);
 
   // Create escrow account for game wager
@@ -733,6 +734,7 @@ export default function Home() {
                     <div className={`w-2 h-2 rounded-full ${
                       connectionStatus === "connected" ? "bg-green-400" : 
                       connectionStatus === "connecting" ? "bg-yellow-400 animate-pulse" : 
+                      connectionStatus === "demo" ? "bg-purple-400" :
                       connectionStatus === "manual" ? "bg-blue-400" :
                       connectionStatus === "error" ? "bg-red-400" : "bg-gray-400"
                     }`}></div>
@@ -768,9 +770,14 @@ export default function Home() {
                   <p className="text-xs text-gray-500">
                     Real $GOR token balances from Gorbagana blockchain
                   </p>
+                                    {connectionStatus === "demo" && (
+                    <p className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-1">
+                      🎮 Demo Mode: Using simulated balances for stable gameplay (no RPC calls)
+                    </p>
+                  )}
                   {connectionStatus === "manual" && (
                     <p className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1">
-                                             🔵 Manual Mode: Click &quot;🔄 Refresh Balance&quot; to update balances (avoids RPC rate limits)
+                      🔵 Manual Mode: Click &quot;🔄 Refresh Balance&quot; to update balances (avoids RPC rate limits)
                     </p>
                   )}
                 </div>
@@ -778,19 +785,35 @@ export default function Home() {
                   🌐 Token: 71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg
                 </p>
                 <div className="flex justify-center gap-4">
-                  <button
-                    onClick={async () => {
-                      if (!wallet.publicKey || !connection) return;
-                      await fetchBalances();
-                      // Return to manual mode after refresh
-                      if (connectionStatus === "connected") {
-                        setConnectionStatus("manual");
-                      }
-                    }}
-                    className="text-xs text-blue-400 hover:text-blue-300 underline"
-                  >
-                    🔄 Refresh Balance
-                  </button>
+                  {connectionStatus === "demo" ? (
+                    <button
+                      onClick={() => {
+                        // Demo mode: Randomize balances for testing
+                        const newSol = Math.random() * 2 + 0.1; // 0.1-2.1 SOL
+                        const newGor = Math.floor(Math.random() * 2000) + 500; // 500-2500 $GOR
+                        setSolBalance(newSol);
+                        setGorBalance(newGor);
+                        toast.success(`🎮 Demo balances updated: ${newGor.toFixed(0)} $GOR, ${newSol.toFixed(3)} SOL`);
+                      }}
+                      className="text-xs text-purple-400 hover:text-purple-300 underline"
+                    >
+                      🎮 Randomize Demo Balances
+                    </button>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        if (!wallet.publicKey || !connection) return;
+                        await fetchBalances();
+                        // Return to manual mode after refresh
+                        if (connectionStatus === "connected") {
+                          setConnectionStatus("manual");
+                        }
+                      }}
+                      className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    >
+                      🔄 Refresh Balance
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       // Clear all localStorage games
