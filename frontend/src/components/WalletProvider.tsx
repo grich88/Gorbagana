@@ -24,9 +24,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // AVAILABLE NETWORK OPTIONS:
   
   // === SOLANA NETWORKS ===
-  // Updated to use more reliable public RPC endpoints to avoid 403 errors
-  const endpoint = 'https://rpc.ankr.com/solana';                 // ✅ Currently Active - Ankr free RPC
-  // const endpoint = 'https://api.mainnet-beta.solana.com';           // Fallback (rate limited)
+  // Using conservative approach with original Solana RPC and aggressive rate limiting
+  const endpoint = 'https://api.mainnet-beta.solana.com';           // ✅ Currently Active - Original Solana RPC (conservative usage)
+  // const endpoint = 'https://rpc.ankr.com/solana';                 // Ankr (requires API key)
   // const endpoint = 'https://solana-api.projectserum.com';        // Project Serum RPC
   // const endpoint = 'https://solana-mainnet.rpc.extrnode.com';   // Extrnode free RPC  
   // const endpoint = 'https://api.devnet.solana.com';              // Solana Devnet

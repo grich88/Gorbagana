@@ -104,13 +104,13 @@ export default function Home() {
       setConnectionStatus("connecting");
 
       try {
-        // Use shorter timeout to avoid 403 errors and add delay between requests
+        // Use very conservative rate limiting to avoid 403 errors
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Request timeout")), 8000)
+          setTimeout(() => reject(new Error("Request timeout")), 10000)
         );
         
-        // Add small delay before starting requests to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Add significant delay before starting requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         const solBalanceResponse = await Promise.race([
           connection.getBalance(wallet.publicKey),
@@ -118,8 +118,8 @@ export default function Home() {
         ]) as number;
         setSolBalance(solBalanceResponse / LAMPORTS_PER_SOL);
 
-        // Add delay between SOL and token balance requests
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Add longer delay between SOL and token balance requests
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Fetch real $GOR token balance
         try {
@@ -191,10 +191,10 @@ export default function Home() {
           toast.error("RPC rate limit reached. Retrying with delay...");
         }
         
-        // Retry logic with exponential backoff
+        // Retry logic with much longer exponential backoff for rate limits
         if (retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 3000; // 3s, 6s, 12s
-          console.log(`Retrying balance fetch (attempt ${retryCount + 1}/3) in ${delay/1000}s...`);
+          const delay = Math.pow(2, retryCount) * 15000; // 15s, 30s, 60s
+          console.log(`Rate limited! Retrying balance fetch (attempt ${retryCount + 1}/3) in ${delay/1000}s...`);
           setTimeout(() => fetchBalances(retryCount + 1), delay);
           return;
         }
@@ -204,7 +204,7 @@ export default function Home() {
     };
 
     fetchBalances();
-    const interval = setInterval(() => fetchBalances(), 20000); // Update every 20 seconds (less frequent to avoid rate limits)
+    const interval = setInterval(() => fetchBalances(), 60000); // Update every 60 seconds (very conservative to avoid rate limits)
     return () => clearInterval(interval);
   }, [wallet.publicKey, connection, wallet]);
 
