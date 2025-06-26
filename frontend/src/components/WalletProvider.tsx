@@ -24,7 +24,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // AVAILABLE NETWORK OPTIONS:
   
   // === SOLANA NETWORKS ===
-  const endpoint = 'https://api.mainnet-beta.solana.com';           // ✅ Currently Active
+  // Updated to use more reliable public RPC endpoints to avoid 403 errors
+  const endpoint = 'https://rpc.ankr.com/solana';                 // ✅ Currently Active - Ankr free RPC
+  // const endpoint = 'https://api.mainnet-beta.solana.com';           // Fallback (rate limited)
+  // const endpoint = 'https://solana-api.projectserum.com';        // Project Serum RPC
+  // const endpoint = 'https://solana-mainnet.rpc.extrnode.com';   // Extrnode free RPC  
   // const endpoint = 'https://api.devnet.solana.com';              // Solana Devnet
   // const endpoint = 'https://api.testnet.solana.com';             // Solana Testnet
   
@@ -32,10 +36,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // const endpoint = 'https://gorchain.wstf.io';                   // 🎯 Gorbagana Mainnet
   // const endpoint = 'https://testnet.gorchain.wstf.io';           // 🎯 Gorbagana Testnet (if available)
   
-  // === CUSTOM RPC ENDPOINTS ===
-  // const endpoint = 'https://your-custom-rpc-endpoint.com';       // Custom Solana-compatible RPC
-  // const endpoint = 'https://mainnet.helius-rpc.com/?api-key=public'; // Helius RPC
-  // const endpoint = 'https://solana-mainnet.g.alchemy.com/v2/demo';   // Alchemy RPC (CORS issues)
+  // === RECOMMENDED: Use a reliable RPC provider for production ===
+  // For production apps, consider using Helius, QuickNode, or Alchemy
+  // const endpoint = 'https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY';
+  // const endpoint = 'https://your-quicknode-endpoint.solana-mainnet.discover.quiknode.pro/YOUR_TOKEN/';
   
   // ===================================================================
   // DEPLOYMENT INSTRUCTIONS FOR JUDGES:
@@ -64,7 +68,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider 
+      endpoint={endpoint}
+      config={{
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 30000,
+        wsEndpoint: undefined,
+      }}
+    >
       <SolanaWalletProvider 
         wallets={wallets} 
         autoConnect={false}

@@ -93,7 +93,7 @@ export default function Home() {
     };
   }, []);
 
-  // Fetch real wallet balances with retry logic
+  // Fetch real wallet balances with improved error handling
   useEffect(() => {
     const fetchBalances = async (retryCount = 0) => {
       if (!wallet.publicKey || !connection) {
@@ -104,10 +104,13 @@ export default function Home() {
       setConnectionStatus("connecting");
 
       try {
-        // Fetch SOL balance with timeout and retry logic
+        // Use shorter timeout to avoid 403 errors and add delay between requests
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Request timeout")), 15000)
+          setTimeout(() => reject(new Error("Request timeout")), 8000)
         );
+        
+        // Add small delay before starting requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
         
         const solBalanceResponse = await Promise.race([
           connection.getBalance(wallet.publicKey),
@@ -115,7 +118,10 @@ export default function Home() {
         ]) as number;
         setSolBalance(solBalanceResponse / LAMPORTS_PER_SOL);
 
-                // Fetch real $GOR token balance
+        // Add delay between SOL and token balance requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Fetch real $GOR token balance
         try {
           console.log("🔍 Checking $GOR balance for:", wallet.publicKey.toString());
           console.log("🪙 Using token mint:", GOR_TOKEN_MINT.toString());
@@ -128,6 +134,9 @@ export default function Home() {
           
           console.log("📍 Associated token account:", associatedTokenAddress.toString());
           
+          // Add delay before account info request
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           // Check if the account exists with timeout
           const accountInfo = await Promise.race([
             connection.getAccountInfo(associatedTokenAddress),
@@ -136,6 +145,10 @@ export default function Home() {
           
           if (accountInfo) {
             console.log("✅ $GOR token account found, fetching balance...");
+            
+            // Add delay before balance request
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
             // Account exists, get the balance with timeout
             const tokenAccountInfo = await Promise.race([
               getAccount(connection, associatedTokenAddress),
@@ -157,7 +170,14 @@ export default function Home() {
         } catch (error) {
           console.error("❌ Error fetching $GOR balance:", error);
           setGorBalance(0);
-          toast.error("Failed to fetch $GOR balance: " + (error as Error).message);
+          
+          // Check if it's a 403 error and provide helpful message
+          const errorMessage = (error as Error).message;
+          if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+            toast.error("RPC rate limit reached. Please try again later.");
+          } else {
+            toast.error("Failed to fetch $GOR balance: " + errorMessage);
+          }
         }
         
         setConnectionStatus("connected");
@@ -165,19 +185,26 @@ export default function Home() {
         console.error("Error fetching balances:", error);
         setConnectionStatus("error");
         
-        // Retry logic - try up to 3 times with increasing delays
+        // Check if it's a 403 error
+        const errorMessage = (error as Error).message;
+        if (errorMessage.includes('403') || errorMessage.includes('Forbidden')) {
+          toast.error("RPC rate limit reached. Retrying with delay...");
+        }
+        
+        // Retry logic with exponential backoff
         if (retryCount < 3) {
-          console.log(`Retrying balance fetch (attempt ${retryCount + 1}/3)...`);
-          setTimeout(() => fetchBalances(retryCount + 1), (retryCount + 1) * 2000);
+          const delay = Math.pow(2, retryCount) * 3000; // 3s, 6s, 12s
+          console.log(`Retrying balance fetch (attempt ${retryCount + 1}/3) in ${delay/1000}s...`);
+          setTimeout(() => fetchBalances(retryCount + 1), delay);
           return;
         }
         
-        toast.error("Failed to fetch wallet balances after retries");
+        toast.error("Failed to fetch wallet balances. Please refresh the page.");
       }
     };
 
     fetchBalances();
-    const interval = setInterval(() => fetchBalances(), 15000); // Update every 15 seconds (less frequent)
+    const interval = setInterval(() => fetchBalances(), 20000); // Update every 20 seconds (less frequent to avoid rate limits)
     return () => clearInterval(interval);
   }, [wallet.publicKey, connection, wallet]);
 
