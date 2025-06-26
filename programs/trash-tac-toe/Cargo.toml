@@ -1,0 +1,20 @@
+[package]
+name = "trash-tac-toe"
+version = "0.1.0"
+description = "A tic-tac-toe game on Gorbagana Chain featuring trash cans vs recycling bins"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "trash_tac_toe"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1" 

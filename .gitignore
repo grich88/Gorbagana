@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Solana artifacts
+solana-release/
+*.tar.bz2
+rustup-init.exe
+
+# Test artifacts
+.anchor/
+test-ledger/
+
+# Temporary files
+*.tmp
+*.temp 
