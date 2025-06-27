@@ -243,8 +243,9 @@ export default function Home() {
   // Handle URL parameters for cross-device sharing
   useEffect(() => {
     if (typeof window !== 'undefined') {
-              // Check for game import data first
-        const importedGame = gameStorage.checkForImportData();
+      // Check for game import data first (async)
+      const checkImportData = async () => {
+        const importedGame = await gameStorage.checkForImportData();
         if (importedGame && !game) {
           setGameId(importedGame.id);
           toast.success(`📥 Game imported from shared link! ID: ${importedGame.id}`);
@@ -257,6 +258,9 @@ export default function Home() {
           }
           return;
         }
+      };
+      
+      checkImportData();
       
       // Fallback to simple game ID parameter
       const urlParams = new URLSearchParams(window.location.search);

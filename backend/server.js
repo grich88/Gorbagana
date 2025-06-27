@@ -200,12 +200,12 @@ app.post('/api/games/:gameId/join', async (req, res) => {
 });
 
 // Make a move
-app.post('/api/games/:gameId/move', (req, res) => {
+app.post('/api/games/:gameId/move', async (req, res) => {
   try {
     const { gameId } = req.params;
     const { position, playerAddress } = req.body;
     
-    const game = db.getGame(gameId);
+    const game = await db.getGame(gameId);
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
@@ -260,7 +260,7 @@ app.post('/api/games/:gameId/move', (req, res) => {
       status = 'finished';
     }
     
-    const success = db.updateGame(gameId, {
+    const success = await db.updateGame(gameId, {
       board: newBoard,
       currentTurn: currentPlayer === 1 ? 2 : 1,
       winner,
@@ -271,7 +271,7 @@ app.post('/api/games/:gameId/move', (req, res) => {
       return res.status(500).json({ error: 'Failed to update game' });
     }
     
-    const updatedGame = db.getGame(gameId);
+    const updatedGame = await db.getGame(gameId);
     
     console.log(`🎯 Move made in game ${gameId}: position ${position} by player ${currentPlayer}`);
     res.json({ success: true, game: updatedGame });
@@ -281,10 +281,10 @@ app.post('/api/games/:gameId/move', (req, res) => {
   }
 });
 
-// Get game statistics
-app.get('/api/stats', (req, res) => {
+// Get game statistics  
+app.get('/api/stats', async (req, res) => {
   try {
-    const stats = db.getStats();
+    const stats = await db.getStats();
     res.json(stats);
   } catch (error) {
     console.error('Error getting stats:', error);
@@ -293,13 +293,13 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Gorbagana Trash Tac Toe server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
   console.log(`💾 File-based database initialized`);
   console.log(`📊 Server stats: http://localhost:${PORT}/api/stats`);
   
   // Show initial database stats
-  const stats = db.getStats();
+  const stats = await db.getStats();
   console.log(`📈 Database contains ${stats.totalGames} games (${stats.publicGames} public, ${stats.activeGames} active)`);
 }); 

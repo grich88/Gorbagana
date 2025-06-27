@@ -36,7 +36,10 @@ export interface SharedGame {
 }
 
 // Backend API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
+    ? 'https://gorbagana-backend.railway.app'  // Production backend URL (update after deployment)
+    : 'http://localhost:3001');
 
 class GameStorage {
   private readonly STORAGE_PREFIX = 'gorbagana_game_'
@@ -155,7 +158,7 @@ class GameStorage {
       return false
     }
   }
-  
+
   // Load game (tries backend first, falls back to localStorage)
   async loadGame(gameId: string): Promise<SharedGame | null> {
     try {
@@ -190,7 +193,7 @@ class GameStorage {
       return null
     }
   }
-  
+
   // Update existing game
   async updateGame(gameId: string, updates: Partial<SharedGame>): Promise<boolean> {
     try {
@@ -199,14 +202,14 @@ class GameStorage {
       
       // Update locally first
       const existingGame = this.loadGameLocally(gameId)
-      if (!existingGame) return false
-      
-      const updatedGame = {
-        ...existingGame,
-        ...updates,
-        updatedAt: Date.now()
-      }
-      
+    if (!existingGame) return false
+    
+    const updatedGame = {
+      ...existingGame,
+      ...updates,
+      updatedAt: Date.now()
+    }
+    
       this.saveGameLocally(updatedGame)
       
       // Try to update backend
@@ -393,7 +396,7 @@ class GameStorage {
       return []
     }
   }
-  
+
   // Delete game
   async deleteGame(gameId: string): Promise<boolean> {
     try {
@@ -423,7 +426,7 @@ class GameStorage {
       return false
     }
   }
-  
+
   // Clean up old games (older than 24 hours)
   cleanupOldGames(): void {
     try {
@@ -477,7 +480,7 @@ class GameStorage {
     console.log('🔄 Force testing backend connection...')
     return await this.checkBackendConnection()
   }
-  
+
   // Generate shareable game data as base64 string
   generateShareableData(gameId: string): string | null {
     const game = this.loadGameLocally(gameId)
@@ -506,7 +509,7 @@ class GameStorage {
       return null
     }
   }
-  
+
   // Import game from shareable data
   async importFromShareableData(encodedData: string): Promise<SharedGame | null> {
     try {
@@ -542,7 +545,7 @@ class GameStorage {
       return null
     }
   }
-  
+
   // Generate shareable URL
   generateShareableUrl(gameId: string, baseUrl: string = window.location.origin): string | null {
     const shareData = this.generateShareableData(gameId)
@@ -550,7 +553,7 @@ class GameStorage {
     
     return `${baseUrl}?import=${shareData}`
   }
-  
+
   // Check if URL has import data
   checkForImportData(): Promise<SharedGame | null> {
     if (typeof window === 'undefined') return Promise.resolve(null)
@@ -566,7 +569,7 @@ class GameStorage {
     
     return Promise.resolve(null)
   }
-  
+
   private addToSharedIndex(gameId: string): void {
     try {
       const shared = JSON.parse(localStorage.getItem(this.SHARED_PREFIX) || '[]')
@@ -578,7 +581,7 @@ class GameStorage {
       // Ignore errors
     }
   }
-  
+
   private removeFromSharedIndex(gameId: string): void {
     try {
       const shared = JSON.parse(localStorage.getItem(this.SHARED_PREFIX) || '[]')
