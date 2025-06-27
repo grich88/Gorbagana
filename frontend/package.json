@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -13,16 +13,12 @@
     "@solana/spl-token": "^0.4.13",
     "@solana/wallet-adapter-backpack": "^0.1.14",
     "@solana/wallet-adapter-base": "^0.9.23",
-    "@solana/wallet-adapter-phantom": "^0.9.24",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/wallet-adapter-react-ui": "^0.9.35",
-    "@solana/wallet-adapter-solflare": "^0.6.32",
-    "@solana/wallet-adapter-wallets": "^0.19.32",
     "@solana/web3.js": "^1.91.4",
-    "@supabase/supabase-js": "^2.50.2",
     "clsx": "^2.0.0",
     "lucide-react": "^0.263.1",
-    "next": "15.3.4",
+    "next": "14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.4.1"
@@ -33,8 +29,8 @@
     "@types/node": "^20",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.4",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
