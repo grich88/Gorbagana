@@ -38,7 +38,7 @@ export interface SharedGame {
 // Backend API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
   (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-    ? 'https://gorbagana-backend.railway.app'  // Production backend URL (update after deployment)
+    ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'  // Production backend URL on Render
     : 'http://localhost:3001');
 
 class GameStorage {
