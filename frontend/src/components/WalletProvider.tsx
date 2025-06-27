@@ -2,78 +2,120 @@
 
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
-import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
-// import { clusterApiUrl } from '@solana/web3.js';
-import { useMemo } from 'react';
+// Simplified - Backpack only
+import { clusterApiUrl } from '@solana/web3.js';
+import { useMemo, useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+
+// ===================================================================
+// GORBAGANA TESTNET CONFIGURATION
+// ===================================================================
+// 
+// This application is built for the Superteam Earn bounty:
+// "Build Multiplayer Mini-Games on Gorbagana Testnet"
+// https://earn.superteam.fun/listing/build-simple-and-fun-dappsgames-on-gorbagana-testnet/
+//
+// Prize Pool: 5,100 USDC total
+// Deadline: July 03, 2025
+// ===================================================================
+
+// RPC Endpoint configuration with fallbacks
+const RPC_ENDPOINTS = [
+  'https://testnet.gorchain.wstf.io', // Primary Gorbagana testnet
+  'https://rpc.testnet.gorbagana.com', // Alternative Gorbagana RPC
+  clusterApiUrl('devnet'), // Fallback to Solana devnet
+  'https://api.devnet.solana.com', // Alternative devnet endpoint
+];
+
+// Test RPC endpoint connectivity
+async function testRPCEndpoint(endpoint: string): Promise<boolean> {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getHealth',
+        params: []
+      }),
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.warn(`RPC endpoint ${endpoint} failed:`, error);
+    return false;
+  }
+}
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // ===================================================================
-  // NETWORK CONFIGURATION - FOR JUDGES EVALUATION
-  // ===================================================================
-  // 
-  // This application is designed to work with any Solana-compatible network.
-  // To switch to Gorbagana network, simply uncomment the desired line below:
-  //
-  // FOR GORBAGANA DEPLOYMENT:
-  // 1. Uncomment the Gorbagana endpoint below
-  // 2. Comment out the current Solana endpoint
-  // 3. Update UI text in page.tsx to reflect Gorbagana network
-  // 4. Rebuild and deploy: npm run build && npx netlify deploy --prod
-  //
-  // AVAILABLE NETWORK OPTIONS:
-  
-  // === SOLANA NETWORKS ===
-  // Using conservative approach with original Solana RPC and aggressive rate limiting
-  const endpoint = 'https://api.mainnet-beta.solana.com';           // ✅ Currently Active - Original Solana RPC (conservative usage)
-  // const endpoint = 'https://rpc.ankr.com/solana';                 // Ankr (requires API key)
-  // const endpoint = 'https://solana-api.projectserum.com';        // Project Serum RPC
-  // const endpoint = 'https://solana-mainnet.rpc.extrnode.com';   // Extrnode free RPC  
-  // const endpoint = 'https://api.devnet.solana.com';              // Solana Devnet
-  // const endpoint = 'https://api.testnet.solana.com';             // Solana Testnet
-  
-  // === GORBAGANA NETWORKS ===
-  // const endpoint = 'https://gorchain.wstf.io';                   // 🎯 Gorbagana Mainnet
-  // const endpoint = 'https://testnet.gorchain.wstf.io';           // 🎯 Gorbagana Testnet (if available)
-  
-  // === RECOMMENDED: Use a reliable RPC provider for production ===
-  // For production apps, consider using Helius, QuickNode, or Alchemy
-  // const endpoint = 'https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY';
-  // const endpoint = 'https://your-quicknode-endpoint.solana-mainnet.discover.quiknode.pro/YOUR_TOKEN/';
-  
-  // ===================================================================
-  // DEPLOYMENT INSTRUCTIONS FOR JUDGES:
-  // ===================================================================
-  // 
-  // TO DEPLOY ON GORBAGANA NETWORK:
-  // 1. Change line above to: const endpoint = 'https://gorchain.wstf.io';
-  // 2. Update page.tsx network display (search for "Solana Mainnet")
-  // 3. Run: npm run build && npx netlify deploy --prod
-  // 4. Verify $GOR token exists on Gorbagana network
-  // 5. Users may need to manually add Gorbagana network to wallets
-  //
-  // NETWORK-AGNOSTIC DESIGN:
-  // - Single line change switches entire application network
-  // - All blockchain interactions use the same connection object
-  // - Token detection works on any network where $GOR exists
-  // - Game logic remains identical across all networks
-  // ===================================================================
-  
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
-    []
-  );
+  const [workingEndpoint, setWorkingEndpoint] = useState<string>(RPC_ENDPOINTS[0]);
+  const [isTestingRPC, setIsTestingRPC] = useState(true);
+
+  // Test RPC endpoints on mount
+  useEffect(() => {
+    async function findWorkingEndpoint() {
+      setIsTestingRPC(true);
+      
+      for (const endpoint of RPC_ENDPOINTS) {
+        console.log(`🔍 Testing RPC endpoint: ${endpoint}`);
+        const isWorking = await testRPCEndpoint(endpoint);
+        
+        if (isWorking) {
+          console.log(`✅ Using RPC endpoint: ${endpoint}`);
+          setWorkingEndpoint(endpoint);
+          
+          // Show which network we're connected to
+          if (endpoint.includes('gorbagana') || endpoint.includes('gorchain')) {
+            toast.success('🎒 Backpack + Gorbagana Testnet Ready');
+          } else if (endpoint.includes('devnet') || endpoint.includes('solana')) {
+            toast('🎒 Backpack + Solana Devnet (limited functionality)', {
+              duration: 4000,
+              icon: '🔄'
+            });
+          }
+          
+          setIsTestingRPC(false);
+          return;
+        }
+      }
+      
+      // No endpoints working, use last resort
+      console.error('❌ All RPC endpoints failed, using devnet as last resort');
+      setWorkingEndpoint(clusterApiUrl('devnet'));
+      toast.error('🚨 Network issues detected - using demo mode');
+      setIsTestingRPC(false);
+    }
+
+    findWorkingEndpoint();
+  }, []);
+
+  // Empty wallets array - Backpack auto-detects
+  const wallets = useMemo(() => [], []);
+
+  if (isTestingRPC) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <p className="text-white">🔍 Finding best network connection...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ConnectionProvider 
-      endpoint={endpoint}
+      endpoint={workingEndpoint}
       config={{
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 30000,
         wsEndpoint: undefined,
+        disableRetryOnRateLimit: false,
+        httpHeaders: {
+          'Content-Type': 'application/json',
+        }
       }}
     >
       <SolanaWalletProvider 
@@ -81,6 +123,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         autoConnect={false}
         onError={(error) => {
           console.error('Wallet error:', error);
+          // Handle specific wallet connection errors
+          if (error.message.includes('User rejected')) {
+            toast.error('Wallet connection rejected by user');
+          } else if (error.message.includes('ethereum')) {
+            toast.error('Multiple wallet extensions detected - disable others except Backpack');
+          } else {
+            toast.error('Backpack connection failed: ' + error.message);
+          }
         }}
       >
         <WalletModalProvider>

@@ -37,12 +37,16 @@ interface Game {
   txSignature?: string; // Transaction signature for escrow
 }
 
-// $GOR Token Configuration for Gorbagana Production
-// Official $GOR token mint address: 71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg
+// $GOR Token Configuration for Gorbagana Testnet
+// This is for the Superteam Earn bounty: "Build Multiplayer Mini-Games on Gorbagana Testnet"
+// https://earn.superteam.fun/listing/build-simple-and-fun-dappsgames-on-gorbagana-testnet/
 const GOR_TOKEN_MINT = new PublicKey("71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg"); 
 const GOR_DECIMALS = 9; // Standard SPL token decimals
 
-// Production mode enabled - using real $GOR tokens
+// Gorbagana Testnet mode enabled
+
+// Import the new cross-device game storage
+import { gameStorage, convertToSharedGame, convertFromSharedGame } from '../lib/gameStorage';
 
 export default function Home() {
   const wallet = useWallet();
@@ -57,6 +61,26 @@ export default function Home() {
   const [gorBalance, setGorBalance] = useState<number>(0);
   const [solBalance, setSolBalance] = useState<number>(0);
   const [connectionStatus, setConnectionStatus] = useState<string>("disconnected");
+  const [backendStatus, setBackendStatus] = useState<{available: boolean, url?: string}>({available: false});
+
+  // Check backend connection status
+  useEffect(() => {
+    const checkBackend = async () => {
+      const status = gameStorage.getConnectionStatus();
+      setBackendStatus(status);
+      
+      // Test connection
+      try {
+        await gameStorage.testConnection();
+        const newStatus = gameStorage.getConnectionStatus();
+        setBackendStatus(newStatus);
+      } catch (error) {
+        console.error('Backend test failed:', error);
+      }
+    };
+    
+    checkBackend();
+  }, []);
 
   // Fix modal scroll issues
   useEffect(() => {
@@ -165,7 +189,7 @@ export default function Home() {
             // Account doesn't exist, user has 0 $GOR tokens
             console.log("❌ $GOR token account doesn't exist for this wallet");
             setGorBalance(0);
-            toast("ℹ️ No $GOR token account found. Visit gorganus.com for token info.");
+                          toast("ℹ️ No $GOR token account found. Visit gorbagana.com for testnet tokens.");
           }
         } catch (error) {
           console.error("❌ Error fetching $GOR balance:", error);
@@ -203,7 +227,7 @@ export default function Home() {
       }
     };
 
-  // Set connection status and demo balances (no RPC calls to avoid 403 errors)
+  // Auto-fetch balances when wallet connects to Gorbagana Testnet
   useEffect(() => {
     if (!wallet.publicKey || !connection) {
       setConnectionStatus("disconnected");
@@ -212,12 +236,41 @@ export default function Home() {
       return;
     }
     
-    // Demo mode: Set realistic demo balances without RPC calls
-    setConnectionStatus("demo");
-    setSolBalance(0.5); // Demo SOL balance
-    setGorBalance(1000); // Demo $GOR balance for testing
-    toast.success("🎮 Demo Mode: Using simulated balances for stable gameplay!");
+    // Automatically fetch real balances from Gorbagana Testnet
+    fetchBalances();
   }, [wallet.publicKey, connection]);
+
+  // Handle URL parameters for cross-device sharing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+              // Check for game import data first
+        const importedGame = gameStorage.checkForImportData();
+        if (importedGame && !game) {
+          setGameId(importedGame.id);
+          toast.success(`📥 Game imported from shared link! ID: ${importedGame.id}`);
+          
+          // Auto-join if wallet is connected
+          if (wallet.connected && wallet.publicKey) {
+            setTimeout(() => {
+              toast.success("🎮 Ready to join imported game!");
+            }, 500);
+          }
+          return;
+        }
+      
+      // Fallback to simple game ID parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const gameParam = urlParams.get('game');
+      
+      if (gameParam && gameParam.length === 4 && !game) {
+        setGameId(gameParam);
+        toast.success(`🔗 Game ID ${gameParam} loaded from link!`);
+        
+        // Clean URL after extracting game ID
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [wallet.connected, wallet.publicKey, game]);
 
   // Create escrow account for game wager
   const createEscrowAccount = async (wagerAmount: number) => {
@@ -289,60 +342,26 @@ export default function Home() {
 
   // Note: Transfer winnings function would be implemented here for production
 
-  // Clean up old localStorage data on first load
+  // Clean up old game data on first load
   useEffect(() => {
-    const cleanupOldGames = () => {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('game_') && key.length > 10) {
-          // Remove old long-format game IDs
-          const gameData = localStorage.getItem(key);
-          if (gameData) {
-            try {
-              const game = JSON.parse(gameData);
-              // If game doesn't have wager property, it's old format
-              if (game.wager === undefined) {
-                keysToRemove.push(key);
-              }
-            } catch {
-              keysToRemove.push(key);
-            }
-          }
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-    };
-
-    cleanupOldGames();
+    // Clean up old games and migrate legacy data
+    gameStorage.cleanupOldGames();
   }, []);
 
-  // Load public games from localStorage
+  // Load public games from cross-device storage
   useEffect(() => {
-    const loadPublicGames = () => {
-      const games: Game[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith('game_') && key.length <= 10) { // Only new 4-digit format
-          const gameData = localStorage.getItem(key);
-          if (gameData) {
-            try {
-              const game: Game = JSON.parse(gameData);
-              // Ensure game has wager property and is properly formatted
-              if (game.wager !== undefined && game.isPublic && game.status === "waiting") {
-                games.push(game);
-              }
-            } catch (error) {
-              console.error("Invalid game data:", error);
-            }
-          }
-        }
+    const loadPublicGames = async () => {
+      try {
+        const sharedGames = await gameStorage.getPublicGames();
+        const games: Game[] = sharedGames.map(convertFromSharedGame);
+        setPublicGames(games);
+      } catch (error) {
+        console.error('Failed to load public games:', error);
       }
-      setPublicGames(games.sort((a, b) => b.createdAt - a.createdAt));
     };
 
     loadPublicGames();
-    const interval = setInterval(loadPublicGames, 3000); // Refresh every 3 seconds
+    const interval = setInterval(loadPublicGames, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -357,15 +376,15 @@ export default function Home() {
     }
   }, []);
 
-  // Poll for game updates every 2 seconds
+  // Poll for game updates every 3 seconds
   useEffect(() => {
     if (!game || !gameId) return;
 
-    const interval = setInterval(() => {
-      const savedGame = localStorage.getItem(`game_${gameId}`);
-      if (savedGame) {
-        try {
-          const parsedGame: Game = JSON.parse(savedGame);
+    const pollGameUpdates = async () => {
+      try {
+        const savedSharedGame = await gameStorage.loadGame(gameId);
+        if (savedSharedGame) {
+          const parsedGame: Game = convertFromSharedGame(savedSharedGame);
           // Ensure parsedGame has wager property
           if (parsedGame.wager === undefined) {
             parsedGame.wager = 0;
@@ -398,12 +417,13 @@ export default function Home() {
               handleGameCompletion(parsedGame);
             }
           }
-        } catch (error) {
-          console.error("Invalid game data in polling:", error);
         }
+      } catch (error) {
+        console.error("Failed to poll game updates:", error);
       }
-    }, 2000);
+    };
 
+    const interval = setInterval(pollGameUpdates, 3000);
     return () => clearInterval(interval);
   }, [game, gameId, wallet.publicKey, handleGameCompletion]);
 
@@ -445,8 +465,9 @@ export default function Home() {
         txSignature: escrowData?.txSignature
       };
       
-      // Save to localStorage for cross-device sharing
-      localStorage.setItem(`game_${newGameId}`, JSON.stringify(newGame));
+              // Save to cross-device storage
+        const sharedGame = convertToSharedGame(newGame);
+        await gameStorage.saveGame(sharedGame);
       
       setGame(newGame);
       setGameId(newGameId);
@@ -477,20 +498,27 @@ export default function Home() {
 
     setLoading(true);
 
-    const updatedGame: Game = {
-      ...publicGame,
-      playerO: wallet.publicKey.toString(),
-      status: "playing"
-    };
-    
-    // Update localStorage
-    localStorage.setItem(`game_${publicGame.id}`, JSON.stringify(updatedGame));
-    
-    setGame(updatedGame);
-    setGameId(publicGame.id);
-    setShowPublicLobby(false);
-    setLoading(false);
-    toast.success(`♻️ Joined ${publicGame.wager} $GOR wager game!`);
+    try {
+      // Use the backend API for joining games to ensure proper coordination
+      const updatedGame = await gameStorage.joinGame(
+        publicGame.id, 
+        wallet.publicKey.toString(), 
+        wallet.publicKey.toString().slice(0, 4) + "..." + wallet.publicKey.toString().slice(-4)
+      );
+
+      if (updatedGame) {
+        setGame(convertFromSharedGame(updatedGame));
+        setGameId(publicGame.id);
+        setShowPublicLobby(false);
+        toast.success(`♻️ Joined ${publicGame.wager} $GOR wager game!`);
+      } else {
+        throw new Error("Failed to join game");
+      }
+    } catch (error) {
+      toast.error("Failed to join game: " + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Improved game joining with proper state sync
@@ -502,12 +530,13 @@ export default function Home() {
 
     setLoading(true);
 
-    // Try to load existing game from localStorage
-    const savedGame = localStorage.getItem(`game_${gameId}`);
+    // Try to load existing game from cross-device storage
+    const savedSharedGame = await gameStorage.loadGame(gameId);
+    const savedGame = savedSharedGame ? convertFromSharedGame(savedSharedGame) : null;
     
     if (savedGame) {
       try {
-        const existingGame: Game = JSON.parse(savedGame);
+        const existingGame: Game = savedGame;
         
         // Ensure game has wager property for compatibility
         if (existingGame.wager === undefined) {
@@ -539,8 +568,9 @@ export default function Home() {
             status: "playing"
           };
           
-          // Update localStorage
-          localStorage.setItem(`game_${gameId}`, JSON.stringify(updatedGame));
+          // Update cross-device storage
+          const sharedGame = convertToSharedGame(updatedGame);
+          gameStorage.saveGame(sharedGame);
           
           setGame(updatedGame);
           setLoading(false);
@@ -572,7 +602,7 @@ export default function Home() {
     toast.error("Game not found! Check the Game ID.");
   };
 
-  // Improved move logic with localStorage sync
+  // Improved move logic with backend coordination
   const makeMove = async (position: number) => {
     if (!game || game.status !== "playing" || game.board[position] !== 0) return;
 
@@ -584,43 +614,42 @@ export default function Home() {
       return;
     }
 
-    // Make move
-    const newBoard = [...game.board];
-    newBoard[position] = game.currentTurn;
-    
-    // Check winner
-    const checkWin = (board: number[], player: number) => {
-      const lines = [
-        [0,1,2], [3,4,5], [6,7,8], // rows
-        [0,3,6], [1,4,7], [2,5,8], // cols
-        [0,4,8], [2,4,6] // diagonals
-      ];
-      return lines.some(line => line.every(i => board[i] === player));
-    };
-
-    let newStatus: GameStatus = "playing";
-    let winner;
-
-    if (checkWin(newBoard, game.currentTurn)) {
-      newStatus = "finished";
-      winner = game.currentTurn;
-      toast.success("🎉 You won!");
-    } else if (newBoard.every(cell => cell !== 0)) {
-      newStatus = "finished";
-      toast.success("🤝 It's a tie!");
+    if (!wallet.publicKey) {
+      toast.error("Wallet not connected!");
+      return;
     }
 
-    const updatedGame: Game = {
-      ...game,
-      board: newBoard,
-      currentTurn: game.currentTurn === 1 ? 2 : 1,
-      status: newStatus,
-      winner
-    };
+    try {
+      // Use backend API for move coordination
+      const updatedGame = await gameStorage.makeMove(
+        game.id, 
+        position, 
+        wallet.publicKey.toString()
+      );
 
-    // Save to localStorage for other players
-    localStorage.setItem(`game_${gameId}`, JSON.stringify(updatedGame));
-    setGame(updatedGame);
+      if (updatedGame) {
+        const convertedGame = convertFromSharedGame(updatedGame);
+        setGame(convertedGame);
+
+        // Show appropriate notifications
+        if (updatedGame.status === "finished") {
+          if (updatedGame.winner) {
+            const isWinner = (updatedGame.winner === 1 && isPlayerX) || 
+                           (updatedGame.winner === 2 && isPlayerO);
+            toast.success(isWinner ? "🎉 You won!" : "💔 You lost!");
+          } else {
+            toast.success("🤝 It's a tie!");
+          }
+        } else {
+          toast.success("✅ Move made!");
+        }
+      } else {
+        throw new Error("Failed to make move");
+      }
+    } catch (error) {
+      console.error("Move failed:", error);
+      toast.error("Failed to make move: " + (error as Error).message);
+    }
   };
 
   const getStatusText = () => {
@@ -734,8 +763,6 @@ export default function Home() {
                     <div className={`w-2 h-2 rounded-full ${
                       connectionStatus === "connected" ? "bg-green-400" : 
                       connectionStatus === "connecting" ? "bg-yellow-400 animate-pulse" : 
-                      connectionStatus === "demo" ? "bg-purple-400" :
-                      connectionStatus === "manual" ? "bg-blue-400" :
                       connectionStatus === "error" ? "bg-red-400" : "bg-gray-400"
                     }`}></div>
                     <div className="text-green-300 font-medium">
@@ -750,6 +777,80 @@ export default function Home() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Debug Panel - Backend Connection Status */}
+          <div className="mb-6 bg-gray-800/60 border border-gray-600/30 rounded-xl p-4">
+            <div className="text-center space-y-2">
+              <h3 className="text-sm font-semibold text-gray-300">Backend Database Status</h3>
+              <div className="flex items-center justify-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${backendStatus.available ? "bg-green-400" : "bg-red-400"}`}></div>
+                <span className={`text-sm ${backendStatus.available ? "text-green-300" : "text-red-300"}`}>
+                  {backendStatus.available ? "✅ Connected to Backend Database" : "❌ Using Local Storage Only"}
+                </span>
+              </div>
+              {backendStatus.url && (
+                <p className="text-xs text-gray-500">API: {backendStatus.url}</p>
+              )}
+              <button
+                onClick={async () => {
+                  const result = await gameStorage.testConnection();
+                  const newStatus = gameStorage.getConnectionStatus();
+                  setBackendStatus(newStatus);
+                  toast(result ? "✅ Backend Connected!" : "❌ Backend Unavailable", {
+                    duration: 3000
+                  });
+                }}
+                className="text-xs px-3 py-1 bg-blue-600/20 border border-blue-500/30 rounded-lg text-blue-300 hover:bg-blue-600/30 transition-colors"
+              >
+                🔄 Test Connection
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    // Force test the backend with a real game creation
+                    const testGame = {
+                      id: `test-${Date.now()}`,
+                      playerX: wallet.publicKey?.toString() || "test-player",
+                      board: [0,0,0,0,0,0,0,0,0],
+                      currentTurn: 1,
+                      status: "waiting" as const,
+                      createdAt: Date.now(),
+                      updatedAt: Date.now(),
+                      wager: 0,
+                      isPublic: true
+                    };
+                    
+                    console.log("🔥 FORCING backend test...");
+                    const success = await gameStorage.saveGame(testGame);
+                    
+                    if (success) {
+                      toast.success("✅ Backend save test successful!");
+                      
+                      // Try to load it back
+                      const loaded = await gameStorage.loadGame(testGame.id);
+                      if (loaded) {
+                        toast.success("✅ Backend load test successful!");
+                      } else {
+                        toast.error("❌ Backend load test failed!");
+                      }
+                    } else {
+                      toast.error("❌ Backend save test failed!");
+                    }
+                    
+                    // Update status
+                    const newStatus = gameStorage.getConnectionStatus();
+                    setBackendStatus(newStatus);
+                  } catch (error) {
+                    console.error("Backend test error:", error);
+                    toast.error("❌ Backend test error: " + (error as Error).message);
+                  }
+                }}
+                className="text-xs px-3 py-1 bg-green-600/20 border border-green-500/30 rounded-lg text-green-300 hover:bg-green-600/30 transition-colors"
+              >
+                🔥 Force Backend Test
+              </button>
             </div>
           </div>
 
@@ -770,65 +871,36 @@ export default function Home() {
                   <p className="text-xs text-gray-500">
                     Real $GOR token balances from Gorbagana blockchain
                   </p>
-                                    {connectionStatus === "demo" && (
-                    <p className="text-xs text-purple-400 bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-1">
-                      🎮 Demo Mode: Using simulated balances for stable gameplay (no RPC calls)
-                    </p>
-                  )}
-                  {connectionStatus === "manual" && (
-                    <p className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1">
-                      🔵 Manual Mode: Click &quot;🔄 Refresh Balance&quot; to update balances (avoids RPC rate limits)
-                    </p>
-                  )}
+                  
                 </div>
                 <p className="text-xs text-green-400">
                   🌐 Token: 71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg
                 </p>
                 <div className="flex justify-center gap-4">
-                  {connectionStatus === "demo" ? (
-                    <button
-                      onClick={() => {
-                        // Demo mode: Randomize balances for testing
-                        const newSol = Math.random() * 2 + 0.1; // 0.1-2.1 SOL
-                        const newGor = Math.floor(Math.random() * 2000) + 500; // 500-2500 $GOR
-                        setSolBalance(newSol);
-                        setGorBalance(newGor);
-                        toast.success(`🎮 Demo balances updated: ${newGor.toFixed(0)} $GOR, ${newSol.toFixed(3)} SOL`);
-                      }}
-                      className="text-xs text-purple-400 hover:text-purple-300 underline"
-                    >
-                      🎮 Randomize Demo Balances
-                    </button>
-                  ) : (
-                    <button
-                      onClick={async () => {
-                        if (!wallet.publicKey || !connection) return;
-                        await fetchBalances();
-                        // Return to manual mode after refresh
-                        if (connectionStatus === "connected") {
-                          setConnectionStatus("manual");
-                        }
-                      }}
-                      className="text-xs text-blue-400 hover:text-blue-300 underline"
-                    >
-                      🔄 Refresh Balance
-                    </button>
-                  )}
+                  <button
+                    onClick={async () => {
+                      if (!wallet.publicKey || !connection) return;
+                      await fetchBalances();
+                    }}
+                    className="text-xs text-green-400 hover:text-green-300 underline"
+                  >
+                    🔄 Refresh Balance
+                  </button>
                   <button
                     onClick={() => {
-                      // Clear all localStorage games
-                      const keysToRemove: string[] = [];
-                      for (let i = 0; i < localStorage.length; i++) {
-                        const key = localStorage.key(i);
-                        if (key?.startsWith('game_')) {
-                          keysToRemove.push(key);
-                        }
+                      // Clear all games from storage
+                      const publicGames = gameStorage.getPublicGames();
+                      publicGames.forEach(game => gameStorage.deleteGame(game.id));
+                      
+                      // Also clear current game if any
+                      if (game) {
+                        gameStorage.deleteGame(game.id);
                       }
-                      keysToRemove.forEach(key => localStorage.removeItem(key));
+                      
                       setGame(null);
                       setGameId("");
                       setPublicGames([]);
-                      toast.success("🧹 All games cleared!");
+                      toast.success("🧹 All games cleared from cross-device storage!");
                     }}
                     className="text-xs text-gray-400 hover:text-white underline"
                   >
@@ -836,7 +908,7 @@ export default function Home() {
                   </button>
                   {gorBalance === 0 && (
                     <span className="text-xs text-orange-400">
-                      No $GOR tokens found - visit <a href="https://gorganus.com" className="underline">gorganus.com</a> for token info
+                      No $GOR tokens found - visit <a href="https://gorbagana.com" className="underline">gorbagana.com</a> for testnet tokens
                     </span>
                   )}
                 </div>
@@ -993,17 +1065,46 @@ export default function Home() {
                           )}
                         </div>
                         {game?.status === "waiting" && (
-                          <div className="space-y-2">
-                            <p className="text-green-400 text-sm">Share this Game ID with your opponent:</p>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(gameId);
-                                toast.success("📋 Game ID copied to clipboard!");
-                              }}
-                              className="bg-green-600/20 hover:bg-green-600/30 border border-green-500/50 text-green-300 px-4 py-2 rounded-lg text-sm transition-all duration-300"
-                            >
-                              📋 Copy Game ID
-                            </button>
+                          <div className="space-y-3">
+                            <p className="text-green-400 text-sm font-medium">📱 Cross-Device Gaming:</p>
+                            <div className="bg-gray-900/50 border border-green-500/30 rounded-xl p-4 space-y-3">
+                              <div className="text-center">
+                                <div className="text-2xl font-mono font-bold text-yellow-300 bg-gray-800 px-3 py-1 rounded border">{gameId}</div>
+                                <p className="text-xs text-gray-400 mt-1">Enter this Game ID on any device</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(gameId);
+                                    toast.success("📋 Game ID copied to clipboard!");
+                                  }}
+                                  className="flex-1 bg-green-600/20 hover:bg-green-600/30 border border-green-500/50 text-green-300 px-3 py-2 rounded-lg text-sm transition-all duration-300"
+                                >
+                                  📋 Copy ID
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const shareUrl = gameStorage.generateShareableUrl(gameId);
+                                    if (shareUrl) {
+                                      navigator.clipboard.writeText(shareUrl);
+                                      toast.success("🔗 Smart game link copied! Works across all devices!");
+                                    } else {
+                                      // Fallback to simple URL
+                                      const gameUrl = `${window.location.origin}?game=${gameId}`;
+                                      navigator.clipboard.writeText(gameUrl);
+                                      toast.success("🔗 Game link copied! Share with opponent.");
+                                    }
+                                  }}
+                                  className="flex-1 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/50 text-blue-300 px-3 py-2 rounded-lg text-sm transition-all duration-300"
+                                >
+                                  🔗 Smart Link
+                                </button>
+                              </div>
+                              <div className="text-xs text-gray-500 text-center space-y-1">
+                                <div>✅ True Cross-Device Gaming • 📱 Mobile & Desktop • 🌐 Any Browser</div>
+                                <div>🔗 Smart Links include game data • No server required</div>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1121,7 +1222,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="text-center bg-gray-800/80 backdrop-blur-sm border border-green-500/30 rounded-2xl p-8 shadow-2xl shadow-green-900/50">
-              <h2 className="text-3xl font-bold mb-4 text-green-300">Connect to Gorbagana Network</h2>
+              <h2 className="text-3xl font-bold mb-4 text-green-300">Connect to Gorbagana Testnet</h2>
               <p className="text-gray-400 mb-6 text-lg">
                 Initialize your wallet connection to access the gaming protocol
               </p>
@@ -1135,28 +1236,21 @@ export default function Home() {
                     - Change RPC display to "gorchain.wstf.io"
                     - Keep token and docs the same
                 */}
-                <p>🌐 <span className="text-green-400">Network:</span> Solana Mainnet (Official RPC)</p>
-                <p>🔗 <span className="text-green-400">RPC:</span> api.mainnet-beta.solana.com</p>
-                
-                {/* FOR GORBAGANA, UNCOMMENT THESE LINES AND COMMENT ABOVE:
-                <p>🌐 <span className="text-green-400">Network:</span> Gorbagana Mainnet</p>
-                <p>🔗 <span className="text-green-400">RPC:</span> gorchain.wstf.io</p>
-                */}
+                <p>🌐 <span className="text-green-400">Network:</span> Gorbagana Testnet</p>
+                <p>🔗 <span className="text-green-400">RPC:</span> testnet.gorchain.wstf.io</p>
                 
                 <p>💰 <span className="text-green-400">Token:</span> $GOR (71Jvq4...ELvg)</p>
-                <p>📚 <span className="text-green-400">Docs:</span> <a href="https://gorganus.com" className="text-green-300 underline">gorganus.com</a></p>
+                <p>📚 <span className="text-green-400">Docs:</span> <a href="https://gorbagana.com" className="text-green-300 underline">gorbagana.com</a></p>
                 <p>📱 <span className="text-green-400">Wallets:</span> Phantom, Solflare</p>
                 <div className="mt-4 pt-3 border-t border-gray-700">
                   <p className="text-xs text-gray-400 mb-2">🔧 Network Configuration (For Judges):</p>
                   <ul className="text-xs text-gray-500 space-y-1">
                     {/* UPDATE THESE LINES FOR GORBAGANA DEPLOYMENT */}
-                    <li>• Currently running on Solana mainnet for $GOR token testing</li>
-                    {/* FOR GORBAGANA: Change to "Currently running on Gorbagana mainnet" */}
-                    
-                    <li>• <strong>Easy Switch:</strong> Uncomment Gorbagana endpoint in WalletProvider.tsx</li>
-                    <li>• <strong>Network Agnostic:</strong> Works with any Solana-compatible blockchain</li>
-                    <li>• <strong>Single Line Change:</strong> Update RPC endpoint for network deployment</li>
-                    <li>• <strong>Judge Instructions:</strong> See comments in WalletProvider.tsx file</li>
+                    <li>• Currently running on Gorbagana Testnet for Superteam Earn bounty</li>
+                    <li>• <strong>Bounty:</strong> Build Multiplayer Mini-Games on Gorbagana Testnet</li>
+                    <li>• <strong>Prize Pool:</strong> 5,100 USDC total rewards</li>
+                    <li>• <strong>Deadline:</strong> July 03, 2025</li>
+                    <li>• <strong>Real Testnet:</strong> Uses actual Gorbagana blockchain with real transactions</li>
                   </ul>
                 </div>
               </div>
