@@ -425,32 +425,51 @@ export default function SimpleGame() {
       const isWinner = (finishedGame.winner === 1 && isPlayerX) || (finishedGame.winner === 2 && isPlayerO);
       const isCreator = isPlayerX; // Only the game creator (Player X) has the escrow private key
       
-      if (isWinner && isCreator && escrowAccount) {
-        // Winner AND creator can distribute their own prize
-        console.log('🏆 You won! Distributing your prize...');
-        const prizeAmount = finishedGame.wager * 2;
-        await transferPrize(prizeAmount, wallet.publicKey);
-        toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR!`);
-      } else if (!isWinner && isCreator && escrowAccount) {
-        // Creator lost, send prize to opponent
-        console.log('😢 You lost. Sending prize to winner...');
-        const winnerAddress = finishedGame.winner === 2 ? finishedGame.playerO : finishedGame.playerX;
-        if (winnerAddress) {
-          const prizeAmount = finishedGame.wager * 2;
-          await transferPrize(prizeAmount, new PublicKey(winnerAddress));
-          toast.error(`😢 You lost ${finishedGame.wager.toFixed(6)} $GOR. Better luck next time!`);
+      if (isCreator && escrowAccount) {
+        // Only the game creator can distribute prizes (has escrow private key)
+        if (finishedGame.winner === 0) {
+          // Tie game - return deposits to both players
+          console.log('🤝 Tie game. Returning deposits to both players...');
+          try {
+            await transferPrize(finishedGame.wager, wallet.publicKey); // Return to creator (self)
+            if (finishedGame.playerO) {
+              await transferPrize(finishedGame.wager, new PublicKey(finishedGame.playerO)); // Return to Player O
+            }
+            toast.success(`🤝 Tie game - ${finishedGame.wager.toFixed(6)} $GOR returned to both players!`);
+          } catch (error) {
+            console.error('❌ Failed to return tie game deposits:', error);
+            toast.error('⚠️ Failed to return deposits - please contact support');
+          }
+        } else if (isWinner) {
+          // Creator won - take the full prize
+          console.log('🏆 You won! Distributing your prize...');
+          try {
+            const prizeAmount = finishedGame.wager * 2;
+            await transferPrize(prizeAmount, wallet.publicKey);
+            toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR!`);
+          } catch (error) {
+            console.error('❌ Failed to claim prize:', error);
+            toast.error('⚠️ Failed to claim prize - please try again');
+          }
+        } else {
+          // Creator lost - send prize to winner
+          console.log('😢 You lost. Sending prize to winner...');
+          const winnerAddress = finishedGame.winner === 2 ? finishedGame.playerO : finishedGame.playerX;
+          if (winnerAddress) {
+            try {
+              const prizeAmount = finishedGame.wager * 2;
+              await transferPrize(prizeAmount, new PublicKey(winnerAddress));
+              toast.error(`😢 You lost ${finishedGame.wager.toFixed(6)} $GOR. Prize sent to winner.`);
+            } catch (error) {
+              console.error('❌ Failed to send prize to winner:', error);
+              toast.error('⚠️ Failed to send prize - please contact support');
+            }
+          }
         }
-      } else if (finishedGame.winner === 0 && isCreator && escrowAccount) {
-        // Tie - creator returns funds to both players
-        console.log('🤝 Tie game. Returning deposits to both players...');
-        await transferPrize(finishedGame.wager, wallet.publicKey); // Return to self
-        if (finishedGame.playerO) {
-          await transferPrize(finishedGame.wager, new PublicKey(finishedGame.playerO)); // Return to opponent
-        }
-        toast.success(`🤝 Tie game - ${finishedGame.wager.toFixed(6)} $GOR returned!`);
       } else if (isWinner && !isCreator) {
-        // Winner but not creator - wait for creator to send prize
-        toast.success(`🎉 You won! Waiting for prize transfer...`);
+        // Winner but not creator - wait for automatic prize distribution
+        const prizeAmount = finishedGame.wager * 2;
+        toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR! Prize will be transferred automatically.`);
       } else if (!isWinner && !isCreator) {
         // Loser and not creator - just show result
         toast.error('😢 You lost this game. Better luck next time!');
@@ -465,13 +484,37 @@ export default function SimpleGame() {
   // Transfer prize from escrow to winner
   const transferPrize = async (amount: number, recipient: PublicKey) => {
     if (!escrowAccount) {
-      throw new Error('No escrow account available');
+      throw new Error('No escrow account available - only game creator can distribute prizes');
     }
 
     try {
-      const prizeLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+      // Check escrow balance first and account for rent exemption
+      const escrowBalance = await connection.getBalance(escrowAccount.publicKey);
+      let prizeLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+      const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(0);
+      const feeBuffer = 10000; // Buffer for transaction fees
+      const totalNeeded = prizeLamports + feeBuffer;
       
-      console.log(`💰 Transferring ${amount.toFixed(6)} $GOR to winner...`);
+      console.log(`💰 Transferring ${amount.toFixed(6)} $GOR to ${recipient.toBase58()}...`);
+      console.log(`🔍 Escrow balance: ${escrowBalance} lamports`);
+      console.log(`🔍 Prize amount: ${prizeLamports} lamports`);
+      console.log(`🔍 Fee buffer: ${feeBuffer} lamports`);
+      console.log(`🔍 Rent exempt minimum: ${rentExemptMinimum} lamports`);
+      console.log(`🔍 Total needed: ${totalNeeded} lamports`);
+      
+      if (escrowBalance < totalNeeded) {
+        // Try to transfer available balance minus buffer
+        const availableToTransfer = escrowBalance - feeBuffer;
+        if (availableToTransfer > 0) {
+          console.log(`⚠️ Adjusting transfer to available balance: ${availableToTransfer} lamports`);
+          const adjustedAmount = availableToTransfer / LAMPORTS_PER_SOL;
+          console.log(`💰 Adjusted transfer: ${adjustedAmount.toFixed(6)} $GOR`);
+          // Use the adjusted amount instead
+          prizeLamports = availableToTransfer;
+        } else {
+          throw new Error(`Insufficient escrow balance: ${escrowBalance} lamports, need ${totalNeeded} lamports`);
+        }
+      }
       
       const { blockhash } = await connection.getLatestBlockhash();
       
@@ -487,10 +530,18 @@ export default function SimpleGame() {
       transaction.recentBlockhash = blockhash;
       transaction.sign(escrowAccount);
 
-      const signature = await connection.sendRawTransaction(transaction.serialize());
-      await confirmTransaction(signature);
+      const signature = await connection.sendRawTransaction(transaction.serialize(), {
+        skipPreflight: false,
+        maxRetries: 3
+      });
+      
+      const confirmResult = await confirmTransaction(signature);
+      if (confirmResult.status === 'Failed') {
+        throw new Error('Prize transfer confirmation failed: ' + JSON.stringify(confirmResult.error));
+      }
       
       console.log(`✅ Prize transferred! Signature: ${signature}`);
+      console.log(`🔗 Explorer: https://gorexplorer.net/lookup.html#tx/${signature}`);
       
     } catch (error) {
       console.error('❌ Prize transfer failed:', error);
