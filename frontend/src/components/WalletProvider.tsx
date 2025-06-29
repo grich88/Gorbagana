@@ -9,10 +9,9 @@ import { toast } from 'react-hot-toast';
 import { Connection, PublicKey } from '@solana/web3.js';
 
 // Gorbagana Testnet Configuration
-// CACHE BUST v5.0 - ULTRA AGGRESSIVE - 2025-01-29 16:30
-// CRITICAL FIX: Production was using cached version with wrong RPC endpoints
-// This version MUST use gorchain.wstf.io NOT rpc.gorbagana.wtf
-// DEPLOYMENT VERIFICATION: If you see rpc.gorbagana.wtf in console, cache is NOT cleared!
+// CACHE BUST v6.3 - OFFICIAL RPC ENDPOINT - 2025-01-29 18:00
+// CRITICAL FIX: Now using official https://rpc.gorbagana.wtf/ per user documentation
+// DEPLOYMENT VERIFICATION: Console should show rpc.gorbagana.wtf (the CORRECT endpoint)
 
 // RPC Endpoint configuration - UPDATED WITH OFFICIAL GORBAGANA ENDPOINTS
 // Based on official Gorbagana documentation: https://rpc.gorbagana.wtf/
@@ -99,7 +98,7 @@ async function testRPCEndpoint(endpoint: string): Promise<boolean> {
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [workingEndpoint, setWorkingEndpoint] = useState<string>(RPC_ENDPOINTS[0]);
-  const [isTestingRPC, setIsTestingRPC] = useState(true);
+  const [isTestingRPC, setIsTestingRPC] = useState(false);
 
   // Prevent wallet extension conflicts
   useEffect(() => {
@@ -117,20 +116,78 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, []);
 
-  // Test RPC endpoints on mount
+  // Initialize with primary Gorbagana endpoint
   useEffect(() => {
-    async function findWorkingEndpoint() {
-      setIsTestingRPC(true);
-      
-      // For Gorbagana, always force the primary endpoint to avoid delays
-      if (RPC_ENDPOINTS[0].includes('gorbagana') || RPC_ENDPOINTS[0].includes('gorchain')) {
-        console.log(`🎯 Forcing Gorbagana endpoint: ${RPC_ENDPOINTS[0]} (bypassing health check)`);
-        setWorkingEndpoint(RPC_ENDPOINTS[0]);
-        // Don't show toast here to reduce noise
-        setIsTestingRPC(false);
-        return;
-      }
-      
-      // For other endpoints, test connectivity
-      for (const endpoint of RPC_ENDPOINTS) {
-        console.log(`
+    console.log(`🎯 Using Gorbagana endpoint: ${RPC_ENDPOINTS[0]} (official endpoint)`);
+    setWorkingEndpoint(RPC_ENDPOINTS[0]);
+    setIsTestingRPC(false);
+  }, []);
+
+  // Empty wallets array - Backpack auto-detects
+  const wallets = useMemo(() => [], []);
+
+  if (isTestingRPC) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <p className="text-white">🔍 Connecting to Gorbagana network...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ConnectionProvider 
+      endpoint={workingEndpoint}
+      config={{
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+        wsEndpoint: undefined, // GORBAGANA: COMPLETELY disable WebSocket
+        disableRetryOnRateLimit: false,
+        httpHeaders: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
+        },
+        fetch: (url, options) => {
+          const httpsUrl = url.toString()
+            .replace('ws://', 'https://')
+            .replace('wss://', 'https://');
+          
+          console.log(`🔒 HTTPS-ONLY: ${httpsUrl}`);
+          
+          return fetch(httpsUrl, {
+            ...options,
+            headers: {
+              ...options?.headers,
+              'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
+              'Content-Type': 'application/json',
+              'Connection': 'close',
+            },
+          });
+        }
+      }}
+    >
+      <SolanaWalletProvider 
+        wallets={wallets} 
+        autoConnect={false}
+        onError={(error) => {
+          console.error('Wallet error:', error);
+          // Handle specific wallet connection errors
+          if (error.message.includes('User rejected')) {
+            toast.error('Wallet connection rejected by user');
+          } else if (error.message.includes('ethereum')) {
+            toast.error('Multiple wallet extensions detected - disable others except Backpack');
+          } else {
+            toast.error('Backpack connection failed: ' + error.message);
+          }
+        }}
+      >
+        <WalletModalProvider>
+          {children}
+        </WalletModalProvider>
+      </SolanaWalletProvider>
+    </ConnectionProvider>
+  );
+}
