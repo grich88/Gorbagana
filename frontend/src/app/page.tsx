@@ -1,5 +1,10 @@
 "use client";
 
+// CACHE BUST v4.0 - FIX DEPLOYMENT FAILURES - 2025-01-29 16:00
+// CRITICAL: Netlify deployments failing - simplified config and fixed backend
+// Backend now has root route, simplified netlify.toml
+// This deployment MUST use gorchain.wstf.io NOT rpc.gorbagana.wtf
+
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';

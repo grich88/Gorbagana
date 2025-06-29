@@ -43,6 +43,26 @@ setInterval(async () => {
 
 // API Routes
 
+// Root route - welcome message
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Gorbagana Trash Tac Toe Backend API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      stats: '/api/stats',
+      games: '/api/games',
+      createGame: 'POST /api/games',
+      getGame: 'GET /api/games/:gameId',
+      updateGame: 'PUT /api/games/:gameId',
+      joinGame: 'POST /api/games/:gameId/join',
+      deleteGame: 'DELETE /api/games/:gameId'
+    },
+    documentation: 'https://github.com/grich88/Gorbagana'
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
