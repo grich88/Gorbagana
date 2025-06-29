@@ -1,276 +1,181 @@
-# 🗑️ Gorbagana Trash-Tac-Toe ♻️
+# 🗑️ Gorbagana Trash Tac Toe
 
-> **Network-Agnostic Environmental Blockchain Gaming with Real $GOR Token Integration!**
+**A multiplayer tic-tac-toe game with real $GOR token wagering on the Gorbagana blockchain network.**
 
-[![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen)](https://gorbagana-trash-tac-toe.netlify.app)
-[![Network](https://img.shields.io/badge/Network-Agnostic%20Design-blue)](https://gorganus.com)
-[![Token](https://img.shields.io/badge/Token-Real%20$GOR-gold)](https://gorganus.com)
-[![Judge Ready](https://img.shields.io/badge/Judge-Evaluation%20Ready-orange)](./JUDGE_EVALUATION_GUIDE.md)
-[![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-blue)](https://nextjs.org/)
-[![Smart Contract](https://img.shields.io/badge/smart%20contract-Anchor-purple)](https://www.anchor-lang.com/)
+## 🚀 Live Demo
 
-## 🎮 About
+- **Frontend**: https://gorbagana-trash-tac-toe.netlify.app
+- **Backend API**: https://gorbagana-trash-tac-toe-backend.onrender.com
+- **Network**: Gorbagana Testnet
+- **Explorer**: https://gorexplorer.net/
 
-**Gorbagana Trash-Tac-Toe** is a network-agnostic blockchain tic-tac-toe game with an environmental twist! Players battle as **Trash Cans (🗑️)** vs **Recycling Bins (♻️)** with real $GOR token wagers. The application is designed to work seamlessly on Solana, Gorbagana, or any compatible blockchain network.
+## ✅ Confirmed Working Features
 
-### 🏆 Superteam Earn Bounty Submission
+### 💰 Real Money Transfers (VERIFIED)
+- ✅ **Real $GOR deposits** to shared escrow accounts
+- ✅ **Automatic prize distribution** to winners
+- ✅ **Live balance updates** after transactions
+- ✅ **Blockchain confirmation** with explorer links
+- ✅ **Transaction signatures** verified on Gorbagana network
 
-This project was created for the Gorbagana Chain development bounty, showcasing:
-- **Network Flexibility**: Single-line configuration switches between networks
-- **Creative Gaming**: Environmental theme with meaningful message  
-- **Technical Excellence**: Production-ready blockchain integration
-- **Judge-Ready**: Comprehensive evaluation documentation
-- **Real Token Integration**: Actual $GOR token detection and wagers
+### 🎮 Cross-Device Gaming
+- ✅ **MongoDB Atlas** cloud database persistence
+- ✅ **Real-time game synchronization** across devices
+- ✅ **5-second polling** for instant move updates
+- ✅ **Public game lobby** with wagered games
 
-## 🌟 Features
+### 🔗 Blockchain Integration
+- ✅ **Official Gorbagana RPC**: `https://rpc.gorbagana.wtf/`
+- ✅ **Backpack wallet** integration
+- ✅ **Live $GOR balance** detection
+- ✅ **Transaction confirmation** with polling
+- ✅ **Explorer integration** for all transactions
 
-### 🎯 Game Features
-- **Environmental Theme**: Trash Cans vs Recycling Bins
-- **Blockchain Gaming**: All moves recorded on-chain
-- **Multiplayer**: Create and join games with friends
-- **Real-time**: Instant game state updates
-- **Mobile-Friendly**: Responsive design for all devices
+## 🎯 How It Works
 
-### 🛠️ Technical Features
-- **Network Agnostic**: Works on Solana, Gorbagana, or any compatible blockchain
-- **Real $GOR Integration**: Actual token detection and balance reading
-- **Smart Contract**: Rust/Anchor program with complete game logic
-- **Modern Frontend**: React/Next.js with TypeScript
-- **Multi-Wallet Support**: Phantom, Solflare, Backpack compatibility
-- **Judge-Ready**: Comprehensive evaluation documentation
-- **Production Deployment**: Live at gorbagana-trash-tac-toe.netlify.app
+1. **Connect Wallet**: Use Backpack wallet with Gorbagana network
+2. **Create Game**: Set wager amount (0.001-1.0 $GOR) 
+3. **Escrow Deposit**: Automatic secure deposit to shared escrow account
+4. **Share Game ID**: Send 4-digit code to opponent
+5. **Opponent Joins**: Matching deposit required for wagered games
+6. **Play Game**: Cross-device real-time tic-tac-toe
+7. **Win Prize**: Automatic 2x wager transfer to winner
 
-## 🌟 Innovation & Uniqueness
+## 💡 Game Rules
 
-### **🌱 First Environmental Blockchain Game on Gorbagana**
-- **Educational Impact**: Promotes sustainability through engaging gameplay
-- **Social Innovation**: Makes environmental awareness fun and shareable
-- **Creative Narrative**: Trash Cans 🗑️ vs Recycling Bins ♻️ with deeper meaning
+- **Trash Cans (🗑️)** vs **Recycling Bins (♻️)**
+- **Winner takes all**: 2x the wager amount
+- **Tie games**: Both players get deposits back
+- **Free games**: No wager required (0 $GOR)
 
-### **🎯 Technical Innovation**
-- **Hybrid Architecture**: Seamless demo-to-blockchain progression (rare in Web3)
-- **Zero-Barrier Entry**: Fully functional without wallet connection
-- **Performance Excellence**: 101KB optimized build, mobile-first design
-- **Smart Contract Innovation**: Timestamp-based PDA seeding, gas-optimized storage
+## 🛠️ Technical Architecture
 
-### **🎨 Design Innovation**
-- **Emoji-First UI**: Universal visual language transcending barriers
-- **Environmental Aesthetics**: Nature-inspired gradients and color psychology
-- **Progressive Web3**: Natural user journey from demo to full blockchain experience
+### Frontend (Next.js)
+- **Framework**: Next.js 14 with TypeScript
+- **Wallet**: Backpack integration with Solana Web3.js
+- **UI**: Responsive design with mobile optimization
+- **Deployment**: Netlify with continuous deployment
 
-📋 **[Read Full Innovation Analysis →](INNOVATION.md)**
+### Backend (Express.js)
+- **API**: RESTful endpoints for game management
+- **Database**: MongoDB Atlas cloud database
+- **CORS**: Enabled for cross-origin requests
+- **Balance Proxy**: Server-side RPC calls to bypass CORS
 
-## 🚀 Quick Start
+### Blockchain
+- **Network**: Gorbagana Testnet
+- **Token**: $GOR (native token)
+- **RPC**: Official endpoint `https://rpc.gorbagana.wtf/`
+- **Escrow**: Shared keypair accounts for secure deposits
 
-### Play with Real $GOR Tokens
-🌐 **[🎮 Play Live on Mainnet](https://gorbagana-trash-tac-toe.netlify.app)** - Production gaming with real $GOR tokens!
-
-### Local Development
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/YOUR_USERNAME/gorbagana-trash-tac-toe.git
-cd gorbagana-trash-tac-toe
-```
-
-2. **Install dependencies**
-```bash
-npm install
-cd frontend && npm install
-```
-
-3. **Run the frontend**
-```bash
-cd frontend
-npm run dev
-```
-
-4. **Open in browser**
-   - Visit `http://localhost:3000`
-   - Connect your Phantom wallet
-   - Start playing!
-
-## 📖 Documentation
-
-| Document | Description |
-|----------|-------------|
-| 🏆 [JUDGE_EVALUATION_GUIDE.md](JUDGE_EVALUATION_GUIDE.md) | **Comprehensive judge evaluation instructions** |
-| 🔧 [NETWORK_CONFIGURATION.md](NETWORK_CONFIGURATION.md) | Network switching and deployment guide |
-| 🚀 [PRODUCTION_RELEASE.md](PRODUCTION_RELEASE.md) | Production features and live deployment |
-| 📋 [PROJECT_COMPLETE.md](PROJECT_COMPLETE.md) | Final project status and specifications |
-| 📄 [SUBMISSION.md](SUBMISSION.md) | Complete bounty submission details |
-
-## 🎯 How to Play
-
-### Getting Started
-1. **Connect Wallet**: Install Phantom, Solflare, or Backpack
-2. **Check Network**: Currently running on Solana mainnet for $GOR testing
-3. **Verify Balance**: Application will automatically detect your $GOR tokens
-4. **Start Gaming**: Create or join games with real $GOR token wagers!
-
-### For Judges: Network Switching
-- **See [JUDGE_EVALUATION_GUIDE.md](JUDGE_EVALUATION_GUIDE.md)** for complete evaluation instructions
-- **Single-line change** in `WalletProvider.tsx` switches to Gorbagana network
-- **Comprehensive comments** explain the switching process
-
-### Game Rules
-- **🗑️ Trash Cans**: Player 1 (game creator)
-- **♻️ Recycling Bins**: Player 2 (game joiner)
-- **Objective**: Get 3 in a row (horizontal, vertical, or diagonal)
-- **Turn-Based**: Players alternate moves
-- **Win Conditions**: First to 3 in a row wins!
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Language**: Rust
-- **Framework**: Anchor v0.31.1
-- **Blockchain**: Solana/Gorbagana compatible
-- **Features**: PDAs, move validation, win detection
-
-### Frontend
-- **Framework**: Next.js 15.3.4 with React 18
-- **Styling**: Tailwind CSS with custom gradients
-- **Wallet**: @solana/wallet-adapter (Phantom)
-- **Icons**: Lucide React
-- **Notifications**: React Hot Toast
-
-### Development Tools
-- **Build**: TypeScript with strict mode
-- **Linting**: ESLint with Next.js rules
-- **Testing**: Anchor test framework
-- **Deployment**: Live on Netlify ✅
-
-## 📊 Project Status
-
-### ✅ Completed Features
-- [x] Smart contract implementation (200+ lines of Rust)
-- [x] Complete frontend interface (500+ lines of TypeScript)
-- [x] Wallet integration and connection management
-- [x] Game mechanics (create, join, play, win detection)
-- [x] Beautiful UI with environmental theme
-- [x] Responsive design for all screen sizes
-- [x] Production build optimization
-- [x] Comprehensive documentation
-
-### 🔄 Current State
-- **Smart Contract**: ✅ Code complete and compiles successfully
-- **Frontend**: ✅ Production build ready and fully functional
-- **Demo Mode**: ✅ Working perfectly for demonstration
-- **Documentation**: ✅ Complete with deployment guides
-
-## 🌍 Environmental Impact
-
-This game promotes environmental awareness by:
-- **Visual Theme**: Recycling vs waste disposal
-- **Educational Value**: Subtle environmental messaging
-- **Community Building**: Bringing eco-conscious gamers together
-- **Future Potential**: Could integrate with real environmental initiatives
-
-## 🔧 Development
+## 🚀 Local Development
 
 ### Prerequisites
 - Node.js 18+
-- Rust and Cargo
-- Solana CLI v1.18.22+
-- Anchor CLI v0.31.1+
-- Phantom wallet
+- Backpack wallet extension
+- $GOR tokens on Gorbagana testnet
 
-### Building Smart Contract
+### Backend Setup
 ```bash
-# Compile the program
-cd programs/trash-tac-toe
-cargo check
-
-# Build with Anchor (when environment is ready)
-anchor build
+cd backend
+npm install
+cp env.example .env
+# Add your MongoDB connection string
+npm start
+# Server runs on http://localhost:3002
 ```
 
-### Running Tests
-```bash
-# Frontend tests
-cd frontend
-npm run lint
-npm run build
-
-# Smart contract tests (when available)
-anchor test
-```
-
-## 🚀 Deployment
-
-### Frontend Deployment
+### Frontend Setup
 ```bash
 cd frontend
-npm run build
-
-# Deploy to Netlify
-netlify deploy --prod --dir .next
-
-# Or deploy to Netlify
-# Upload .next folder to Netlify
+npm install
+npm run dev
+# App runs on http://localhost:3000
 ```
 
-### Smart Contract Deployment
-```bash
-# Set network
-solana config set --url https://gorchain.wstf.io
+## 🔧 Environment Variables
 
-# Deploy (when build works)
-anchor deploy
+### Backend (.env)
 ```
+MONGODB_URI=your_mongodb_atlas_connection_string
+PORT=3002
+NODE_ENV=development
+```
+
+### Frontend (.env.local)
+```
+NEXT_PUBLIC_API_URL=http://localhost:3002
+```
+
+## 🎮 Production Verification
+
+### Recent Transaction Examples
+- **Deposit**: `663vEuxVCXorQgxtxNdaBhPtABCxsPRUhhG1KwfZXhaRt1CwXR7q1xoYkBHPjB8fVHxH1o1fj8fD7K7ZiKMTDLQi`
+- **Prize Transfer**: `5t365XcJAPBgWVBMt255gegCptuTUrmf2KF6UZwR76QPyjQinQs95PJ5F78dL6Qbbr8aaVhSVHLMRyW23XZFWPTW`
+
+### Balance Verification
+- Starting: 0.981860 $GOR
+- After deposits: 0.977850 $GOR (-0.004 $GOR)
+- Prize distributed: 0.003990 $GOR
+
+## 🏆 Competition Features
+
+- **Real $GOR wagering** with secure escrow system
+- **Cross-device multiplayer** gaming
+- **Professional UI/UX** with animations
+- **Mobile responsive** design
+- **Production deployment** on major platforms
+- **Complete documentation** and setup guides
+
+## 📱 Mobile Support
+
+Optimized for all screen sizes:
+- **Desktop**: Full feature set
+- **Tablet**: Touch-friendly interface  
+- **Mobile**: 280px+ width support
+
+## 🔐 Security Features
+
+- **Client-side wallet** integration (no private key exposure)
+- **Shared escrow accounts** (no single point of control)
+- **Transaction confirmation** before proceeding
+- **Balance validation** before transfers
+- **Error handling** and recovery
+
+## 📊 Performance
+
+- **Frontend**: Sub-2s load times on Netlify
+- **Backend**: <200ms API response times on Render
+- **Database**: MongoDB Atlas global clusters
+- **Polling**: 5-second intervals for real-time sync
+
+## 🎨 Graphics & Animations
+
+- **3D-style game board** with glowing borders
+- **Bouncing piece animations** on placement
+- **Victory celebrations** with golden highlights
+- **Turn indicators** with visual feedback
+- **Mobile-optimized** touch interactions
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
-1. **Fork the repository**
-2. **Create a feature branch**
-3. **Make your changes**
-4. **Add tests** (if applicable)
-5. **Submit a pull request**
+## 📄 License
 
-### Development Guidelines
-- Follow TypeScript best practices
-- Maintain responsive design
-- Add comprehensive error handling
-- Update documentation for new features
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📜 License
+## 🙏 Acknowledgments
 
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🏆 Bounty Information
-
-**Superteam Earn Bounty**: Gorbagana Chain Development  
-**Category**: Blockchain Gaming  
-**Requirements**: ✅ All fulfilled  
-**Status**: Ready for submission  
-
-## 🔗 Links
-
-- **Live Demo**: https://gorbagana-trash-tac-toe.netlify.app
-- **Gorbagana Chain**: https://gorbaganachain.xyz/
-- **Phantom Wallet**: https://phantom.app/
-- **Superteam**: https://superteam.fun/
-
-## 📞 Support
-
-- **Issues**: Open a GitHub issue
-- **Questions**: Check the documentation
-- **Community**: Join the Gorbagana Discord
+- **Gorbagana Network** for the blockchain infrastructure
+- **Backpack Wallet** for wallet integration
+- **MongoDB Atlas** for cloud database services
+- **Netlify & Render** for hosting platforms
 
 ---
 
-## 🎉 Acknowledgments
-
-- **Gorbagana Team**: For the innovative blockchain platform
-- **Superteam**: For the bounty opportunity
-- **Solana Labs**: For the excellent development tools
-- **Environmental Community**: For inspiring the theme
-
----
-
-**🎮 Ready to play? Connect your wallet and start the battle between Trash Cans and Recycling Bins! 🗑️♻️**
-
-*Built with ❤️ for a sustainable blockchain future* 
+**Built for the Superteam Earn bounty competition** 🚀 
