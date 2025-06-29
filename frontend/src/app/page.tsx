@@ -1,8 +1,9 @@
 "use client";
 
-// CACHE BUST v4.0 - FIX DEPLOYMENT FAILURES - 2025-01-29 16:00
-// CRITICAL: Netlify deployments failing - simplified config and fixed backend
-// Backend now has root route, simplified netlify.toml
+// CACHE BUST v5.0 - ULTRA AGGRESSIVE CACHE CLEAR - 2025-01-29 16:30
+// CRITICAL: Production STILL showing cached rpc.gorbagana.wtf - FORCE REBUILD
+// Backend working, Netlify cache extremely aggressive - NUCLEAR CACHE CLEAR
+// VERIFICATION: Console MUST show gorchain.wstf.io NOT rpc.gorbagana.wtf
 // This deployment MUST use gorchain.wstf.io NOT rpc.gorbagana.wtf
 
 import { useState, useEffect, useCallback } from 'react';

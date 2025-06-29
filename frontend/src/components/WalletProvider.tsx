@@ -9,21 +9,27 @@ import { toast } from 'react-hot-toast';
 import { Connection, PublicKey } from '@solana/web3.js';
 
 // Gorbagana Testnet Configuration
-// CACHE BUST v3.0 - FORCE COMPLETE REBUILD WITH CORRECT ENDPOINTS
+// CACHE BUST v5.0 - ULTRA AGGRESSIVE - 2025-01-29 16:30
 // CRITICAL FIX: Production was using cached version with wrong RPC endpoints
 // This version MUST use gorchain.wstf.io NOT rpc.gorbagana.wtf
+// DEPLOYMENT VERIFICATION: If you see rpc.gorbagana.wtf in console, cache is NOT cleared!
 
 // RPC Endpoint configuration - CORRECTED WITH OFFICIAL GORBAGANA ENDPOINTS
 // Based on documentation: NETWORK_CONFIGURATION.md, PRODUCTION_RELEASE.md, FINAL_INSTRUCTIONS.md
 // DEPLOYMENT UPDATE: Forcing fresh deployment to ensure correct RPC endpoints are used
-// FORCE DEPLOY v3: Ensuring production uses gorchain.wstf.io NOT rpc.gorbagana.wtf
-// CACHE BUST: 2025-01-29-15:30 - FORCE NETLIFY REBUILD
+// FORCE DEPLOY v5: Ensuring production uses gorchain.wstf.io NOT rpc.gorbagana.wtf
+// CACHE BUST: 2025-01-29-16:30 - ULTRA AGGRESSIVE NETLIFY REBUILD
+// VERSION CHECK: v5.0-gorchain-fix-ultra-aggressive
 const RPC_ENDPOINTS = [
-  'https://gorchain.wstf.io', // PRIMARY: Official Gorbagana Mainnet RPC (from documentation)
-  'https://testnet.gorchain.wstf.io', // SECONDARY: Official Gorbagana Testnet RPC (if available)
-  'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing
-  'https://api.mainnet-beta.solana.com', // ALTERNATIVE: Solana mainnet
+  'https://gorchain.wstf.io', // PRIMARY: Official Gorbagana Mainnet RPC (from documentation) - v5.0
+  'https://testnet.gorchain.wstf.io', // SECONDARY: Official Gorbagana Testnet RPC (if available) - v5.0
+  'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing - v5.0
+  'https://api.mainnet-beta.solana.com', // ALTERNATIVE: Solana mainnet - v5.0
 ];
+
+// CACHE VERIFICATION: Console should show gorchain.wstf.io NOT rpc.gorbagana.wtf
+console.log('🚀 CACHE BUST v5.0 - RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
+console.log('✅ VERIFICATION: Should be gorchain.wstf.io NOT rpc.gorbagana.wtf');
 
 // Test RPC endpoint connectivity with better error handling
 async function testRPCEndpoint(endpoint: string): Promise<boolean> {

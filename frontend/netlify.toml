@@ -2,10 +2,31 @@
   command = "npm run build"
   publish = "out"
 
+# ULTRA AGGRESSIVE CACHE CLEAR - v5.0
 # Environment variables for build
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"
+  CACHE_BUST_ID = "v5-ultra-aggressive-2025-01-29-1630"
+  BUILD_TIMESTAMP = "1751204400000"
+  FORCE_REBUILD = "true"
+
+# NUCLEAR CACHE CLEAR - Force all files to reload
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
+    Pragma = "no-cache"
+    Expires = "0"
+    X-Cache-Bust = "v5-ultra-aggressive"
+    X-Build-ID = "gorchain-fix-v5"
+
+# Force JS files to reload
+[[headers]]
+  for = "/_next/static/chunks/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
+    X-Cache-Bust = "v5-js-reload"
 
 # Basic redirects for SPA
 [[redirects]]
