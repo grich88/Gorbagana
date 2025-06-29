@@ -11,12 +11,7 @@ import {
   SystemProgram, 
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
-import { 
-  getOrCreateAssociatedTokenAccount,
-  getAccount,
-  getAssociatedTokenAddress,
-  Account
-} from '@solana/spl-token';
+// SPL token imports removed - $GOR is native token
 
 // Simplified game types
 type GameStatus = "waiting" | "playing" | "finished";
@@ -38,12 +33,8 @@ interface Game {
 }
 
 // $GOR Token Configuration for Gorbagana Testnet
-// This is for the Superteam Earn bounty: "Build Multiplayer Mini-Games on Gorbagana Testnet"
-// https://earn.superteam.fun/listing/build-simple-and-fun-dappsgames-on-gorbagana-testnet/
-const GOR_TOKEN_MINT = new PublicKey("71Jvq4Epe2FCJ7JFSF7jLXdNk1Wy4Bhqd9iL6bEFELvg"); 
-const GOR_DECIMALS = 9; // Standard SPL token decimals
-
-// Gorbagana Testnet mode enabled
+// $GOR is the NATIVE token on Gorbagana (like SOL on Solana)
+// Source: docs.gorbagana.wtf and faucet.gorbagana.wtf
 
 // Import the new cross-device game storage
 import { gameStorage, convertToSharedGame, convertFromSharedGame } from '../lib/gameStorage';
@@ -145,52 +136,43 @@ export default function Home() {
         // Add longer delay between SOL and token balance requests
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Fetch real $GOR token balance
+        // Fetch $GOR token balance - NATIVE TOKEN DETECTION
         try {
-          console.log("🔍 Checking $GOR balance for:", wallet.publicKey.toString());
-          console.log("🪙 Using token mint:", GOR_TOKEN_MINT.toString());
+          console.log("🔍 Checking Gorbagana network for $GOR tokens:", wallet.publicKey.toString());
+          console.log("🌐 Using RPC:", connection.rpcEndpoint);
+          console.log("💡 $GOR is NATIVE token on Gorbagana (like SOL on Solana)");
           
-          // Use the proper method to get associated token account address
-          const associatedTokenAddress = await Promise.race([
-            getAssociatedTokenAddress(GOR_TOKEN_MINT, wallet.publicKey),
-            timeoutPromise
-          ]) as PublicKey;
-          
-          console.log("📍 Associated token account:", associatedTokenAddress.toString());
-          
-          // Add delay before account info request
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Check if the account exists with timeout
-          const accountInfo = await Promise.race([
-            connection.getAccountInfo(associatedTokenAddress),
-            timeoutPromise
-          ]);
-          
-          if (accountInfo) {
-            console.log("✅ $GOR token account found, fetching balance...");
-            
-            // Add delay before balance request
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
-            // Account exists, get the balance with timeout
-            const tokenAccountInfo = await Promise.race([
-              getAccount(connection, associatedTokenAddress),
-              timeoutPromise
-            ]) as Account;
-            const balance = Number(tokenAccountInfo.amount) / (10 ** GOR_DECIMALS);
-            console.log("💰 $GOR Balance found:", balance);
-            setGorBalance(balance);
-            
-            if (balance > 0) {
-              toast.success(`💰 Found ${balance.toFixed(2)} $GOR tokens!`);
-            }
-          } else {
-            // Account doesn't exist, user has 0 $GOR tokens
-            console.log("❌ $GOR token account doesn't exist for this wallet");
-            setGorBalance(0);
-                          toast("ℹ️ No $GOR token account found. Visit gorbagana.com for testnet tokens.");
+          // Ensure we're on Gorbagana network
+          if (!connection.rpcEndpoint.includes('gorbagana') && !connection.rpcEndpoint.includes('gorchain')) {
+            console.log("⚠️ Not on Gorbagana network - this may not work correctly");
+            toast.error("Please ensure you're connected to Gorbagana network in Backpack wallet");
           }
+          
+          // $GOR is the NATIVE token - use the SOL balance as $GOR balance
+          console.log("🔍 Checking native $GOR balance (same as SOL balance on Gorbagana)...");
+          const nativeBalance = solBalanceResponse / LAMPORTS_PER_SOL;
+          
+          console.log(`💰 Native balance on Gorbagana: ${nativeBalance} $GOR`);
+          console.log(`📊 Raw lamports: ${solBalanceResponse}`);
+          
+          if (nativeBalance > 0) {
+            console.log("✅ $GOR tokens detected on Gorbagana network:", nativeBalance);
+            setGorBalance(nativeBalance);
+            toast.success(`💰 Found ${nativeBalance.toFixed(6)} $GOR tokens on Gorbagana!`);
+          } else {
+            console.log("❌ No $GOR tokens found on Gorbagana network");
+            setGorBalance(0);
+            
+            // Provide helpful guidance
+            if (!connection.rpcEndpoint.includes('gorbagana') && !connection.rpcEndpoint.includes('gorchain')) {
+              toast.error("Switch to Gorbagana network in your Backpack wallet to see $GOR tokens");
+            } else {
+              toast("ℹ️ No $GOR tokens found. Visit Gorbagana faucet: faucet.gorbagana.wtf");
+            }
+          }
+          
+
+          
         } catch (error) {
           console.error("❌ Error fetching $GOR balance:", error);
           setGorBalance(0);
@@ -276,71 +258,47 @@ export default function Home() {
     }
   }, [wallet.connected, wallet.publicKey, game]);
 
-  // Create escrow account for game wager
+  // Simplified escrow validation for $GOR native token
   const createEscrowAccount = async (wagerAmount: number) => {
-    if (!wallet.publicKey || !wallet.signTransaction || !connection) {
+    if (!wallet.publicKey || !connection) {
       throw new Error("Wallet not connected");
     }
 
     if (wagerAmount <= 0) return null;
 
-          try {
-        // Real $GOR token escrow implementation
-        toast("🔒 Creating $GOR token escrow...");
-        
-        const transaction = new Transaction();
-        
-        // Get user's $GOR token account
-        const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
-          connection,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          wallet as any,
-          GOR_TOKEN_MINT,
-          wallet.publicKey
-        );
-        
-        // Create a unique escrow identifier (in production, use a proper escrow program)
-        const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        
-        // For now, we'll validate the transfer capability without actually transferring
-        // In production, tokens would be transferred to a proper escrow program
+    try {
+      // $GOR native token escrow - simplified approach
+      toast("🔒 Validating $GOR balance for wager...");
+      
+      // $GOR is native token - check native balance directly
+      const nativeBalance = await connection.getBalance(wallet.publicKey);
+      const userGorBalance = nativeBalance / LAMPORTS_PER_SOL;
+      
+      console.log(`💰 User $GOR balance: ${userGorBalance} (${nativeBalance} lamports)`);
+      console.log(`🎯 Wager amount: ${wagerAmount.toFixed(5)} $GOR`);
+      
+      if (userGorBalance < wagerAmount) {
+        throw new Error(`Insufficient $GOR balance. Have ${userGorBalance.toFixed(5)}, need ${wagerAmount.toFixed(5)}`);
+      }
+      
+      // Create a unique escrow identifier (simplified for demo)
+      const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      
+      console.log(`💼 Escrow validation successful: ${wagerAmount.toFixed(5)} $GOR`);
+      console.log(`🔑 Escrow ID: ${escrowId}`);
 
-        // Check if user has sufficient $GOR balance
-        const accountInfo = await getAccount(connection, fromTokenAccount.address);
-        const userBalance = Number(accountInfo.amount) / (10 ** GOR_DECIMALS);
-        
-        if (userBalance < wagerAmount) {
-          throw new Error(`Insufficient $GOR balance. Have ${userBalance.toFixed(2)}, need ${wagerAmount}`);
-        }
-
-        // Create a minimal transaction to verify wallet connection and $GOR access
-        // In production, this would be a proper escrow program transaction
-        transaction.add(
-          SystemProgram.transfer({
-            fromPubkey: wallet.publicKey,
-            toPubkey: wallet.publicKey,
-            lamports: 1000, // Minimal SOL for transaction validation
-          })
-        );
-
-        const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = wallet.publicKey;
-
-        const signedTransaction = await wallet.signTransaction(transaction);
-        const signature = await connection.sendRawTransaction(signedTransaction.serialize());
-        
-        await connection.confirmTransaction(signature);
-        
-        toast.success(`✅ ${wagerAmount} $GOR escrow validated! (Production escrow pending)`);
-        
-        return {
-          escrowAccount: escrowId,
-          txSignature: signature
-        };
+      // Skip transaction for now to avoid timeout issues
+      // In production, implement proper escrow smart contract
+      
+      toast.success(`✅ ${wagerAmount.toFixed(5)} $GOR wager validated! (Demo mode - no actual transfer)`);
+      
+      return {
+        escrowAccount: escrowId,
+        txSignature: `demo_${Date.now()}`
+      };
     } catch (error) {
-      console.error("Escrow creation failed:", error);
-      throw new Error("Failed to create escrow account");
+      console.error("Escrow validation failed:", error);
+      throw error;
     }
   };
 
@@ -375,7 +333,7 @@ export default function Home() {
       const winnerPublicKey = completedGame.winner === 1 ? completedGame.playerX : completedGame.playerO;
       if (winnerPublicKey) {
         // Simple completion notification for now
-        toast.success(`🏆 Game completed! Winner gets ${completedGame.wager * 2} $GOR!`);
+        toast.success(`🏆 Game completed! Winner gets ${(completedGame.wager * 2).toFixed(5)} $GOR!`);
       }
     }
   }, []);
@@ -439,17 +397,17 @@ export default function Home() {
     }
 
     if (wagerAmount > gorBalance) {
-      toast.error(`Insufficient $GOR balance! Need ${wagerAmount} but only have ${gorBalance.toFixed(2)}`);
+      toast.error(`Insufficient $GOR balance! Need ${wagerAmount.toFixed(5)} but only have ${gorBalance.toFixed(5)}`);
       return;
     }
 
     setLoading(true);
     
     try {
-      // Create escrow account if wager > 0
+      // Validate wager amount if wager > 0
       let escrowData = null;
       if (wagerAmount > 0) {
-        toast("Creating escrow account...");
+        toast("Validating wager amount...");
         escrowData = await createEscrowAccount(wagerAmount);
       }
 
@@ -478,7 +436,7 @@ export default function Home() {
       setLoading(false);
       
       if (isPublicGame) {
-        toast.success(`🗑️ Public game created with ${wagerAmount} $GOR wager!`);
+        toast.success(`🗑️ Public game created with ${wagerAmount.toFixed(5)} $GOR wager!`);
       } else {
         toast.success("🗑️ Game created! Share the Game ID with a friend!");
       }
@@ -514,7 +472,7 @@ export default function Home() {
         setGame(convertFromSharedGame(updatedGame));
         setGameId(publicGame.id);
         setShowPublicLobby(false);
-        toast.success(`♻️ Joined ${publicGame.wager} $GOR wager game!`);
+        toast.success(`♻️ Joined ${publicGame.wager.toFixed(5)} $GOR wager game!`);
       } else {
         throw new Error("Failed to join game");
       }
@@ -580,7 +538,7 @@ export default function Home() {
           setLoading(false);
           
           if (existingGame.wager > 0) {
-            toast.success(`♻️ Joined game with ${existingGame.wager} $GOR wager!`);
+            toast.success(`♻️ Joined game with ${existingGame.wager.toFixed(5)} $GOR wager!`);
           } else {
             toast.success("♻️ Joined game! Let's play!");
           }
@@ -891,14 +849,16 @@ export default function Home() {
                     🔄 Refresh Balance
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       // Clear all games from storage
-                      const publicGames = gameStorage.getPublicGames();
-                      publicGames.forEach(game => gameStorage.deleteGame(game.id));
+                      const publicGames = await gameStorage.getPublicGames();
+                      for (const game of publicGames) {
+                        await gameStorage.deleteGame(game.id);
+                      }
                       
                       // Also clear current game if any
                       if (game) {
-                        gameStorage.deleteGame(game.id);
+                        await gameStorage.deleteGame(game.id);
                       }
                       
                       setGame(null);
@@ -1033,7 +993,7 @@ export default function Home() {
                           <div className="flex items-center gap-4">
                             <div className="text-green-300 font-mono text-lg">#{publicGame.id}</div>
                             <div>
-                              <div className="text-white font-medium">Wager: {publicGame.wager} $GOR</div>
+                              <div className="text-white font-medium">Wager: {publicGame.wager.toFixed(5)} $GOR</div>
                               <div className="text-sm text-gray-400">Created by {publicGame.creatorName}</div>
                             </div>
                           </div>
@@ -1064,7 +1024,7 @@ export default function Home() {
                           <span className="text-gray-500 font-mono">Game ID: {gameId}</span>
                           {game?.wager && game.wager > 0 && (
                             <span className="bg-yellow-600/20 border border-yellow-500/30 text-yellow-300 px-2 py-1 rounded">
-                              💰 {game.wager} $GOR Wager
+                              💰 {game.wager.toFixed(5)} $GOR Wager
                             </span>
                           )}
                         </div>
@@ -1174,7 +1134,7 @@ export default function Home() {
                           <h3 className="text-lg font-bold text-green-300 mb-2">💰 Wager Results</h3>
                           {game.winner ? (
                             <p className="text-gray-300">
-                              Winner receives: <span className="text-yellow-400 font-bold">{game.wager * 2} $GOR</span>
+                              Winner receives: <span className="text-yellow-400 font-bold">{(game.wager * 2).toFixed(5)} $GOR</span>
                             </p>
                           ) : (
                             <p className="text-gray-300">Tie game - no $GOR transferred</p>
