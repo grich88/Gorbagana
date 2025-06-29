@@ -574,6 +574,13 @@ export default function SimpleGame() {
         playerXDeposit: escrowData?.txSignature
       };
 
+      console.log('💾 Saving game to backend:', {
+        gameId: newGame.id,
+        wager: newGame.wager,
+        escrowAccount: newGame.escrowAccount,
+        hasEscrowAccount: !!newGame.escrowAccount
+      });
+
       // Save to backend
       const response = await fetch(`${API_BASE_URL}/api/games`, {
         method: 'POST',
@@ -630,10 +637,25 @@ export default function SimpleGame() {
       const gameData = await gameResponse.json();
       const existingGame = gameData.game;
 
+      console.log('🎮 Retrieved game data for joining:', {
+        gameId: existingGame.id,
+        wager: existingGame.wager,
+        escrowAccount: existingGame.escrowAccount,
+        hasEscrowAccount: !!existingGame.escrowAccount
+      });
+
       // Check wager requirements
       if (existingGame.wager > gorBalance) {
         setLoading(false);
         toast.error(`Insufficient $GOR! This game requires ${existingGame.wager.toFixed(4)} $GOR`);
+        return;
+      }
+
+      // Validate that escrow account exists for wagered games
+      if (existingGame.wager > 0 && !existingGame.escrowAccount) {
+        setLoading(false);
+        toast.error("❌ Cannot find shared escrow account - game creator must deposit first");
+        console.error('❌ Game missing escrow account:', JSON.stringify(existingGame, null, 2));
         return;
       }
 

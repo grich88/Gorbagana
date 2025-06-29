@@ -92,11 +92,26 @@ app.post('/api/games', async (req, res) => {
       updatedAt: Date.now()
     };
     
+    console.log('💾 Game data being saved:', {
+      gameId: game.id,
+      wager: game.wager,
+      escrowAccount: game.escrowAccount,
+      hasEscrowAccount: !!game.escrowAccount,
+      playerXDeposit: game.playerXDeposit
+    });
+    
     const success = await db.saveGame(game);
     
     if (success) {
       console.log(`✅ Created game: ${gameId} (${game.isPublic ? 'public' : 'private'})`);
-      res.json({ success: true, game });
+      const savedGame = await db.getGame(gameId);
+      console.log('📖 Retrieved saved game:', {
+        gameId: savedGame.id,
+        wager: savedGame.wager,
+        escrowAccount: savedGame.escrowAccount,
+        hasEscrowAccount: !!savedGame.escrowAccount
+      });
+      res.json({ success: true, game: savedGame });
     } else {
       throw new Error('Failed to save game to database');
     }
@@ -116,7 +131,12 @@ app.get('/api/games/:gameId', async (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
     
-    console.log(`📖 Retrieved game: ${gameId}`);
+    console.log(`📖 Retrieved game: ${gameId}`, {
+      wager: game.wager,
+      escrowAccount: game.escrowAccount,
+      hasEscrowAccount: !!game.escrowAccount,
+      status: game.status
+    });
     res.json({ game });
   } catch (error) {
     console.error('Error getting game:', error);
