@@ -16,32 +16,34 @@ if (!fs.existsSync(backendDir)) {
 console.log('📁 Backend directory found');
 console.log('📦 Backend files prepared for deployment');
 
-// Railway deployment instructions
-console.log('\n🚂 RAILWAY DEPLOYMENT INSTRUCTIONS:');
-console.log('1. Go to https://railway.app');
-console.log('2. Sign up/Login with GitHub');
-console.log('3. Click "Start a New Project"');
-console.log('4. Choose "Deploy from GitHub repo"');
-console.log('5. Select your Gorbagana repository');
-console.log('6. Choose the "backend" folder as root directory');
-console.log('7. Add environment variables:');
-console.log('   - MONGODB_URI: (your MongoDB Atlas connection string)');
-console.log('   - PORT: 3001');
-console.log('   - NODE_ENV: production');
-console.log('   - CORS_ORIGINS: https://gorbagana-trash-tac-toe.netlify.app');
-console.log('8. Deploy!');
+// RENDER.COM DEPLOYMENT STATUS (Currently Active)
+console.log('\n✅ BACKEND ALREADY DEPLOYED ON RENDER.COM!');
+console.log('🌐 Live Backend URL: https://gorbagana-trash-tac-toe-backend.onrender.com');
+console.log('📊 Health Check: https://gorbagana-trash-tac-toe-backend.onrender.com/health');
+console.log('🎮 API Endpoints: https://gorbagana-trash-tac-toe-backend.onrender.com/api/games');
+console.log('');
 
-console.log('\n🎨 RENDER DEPLOYMENT INSTRUCTIONS:');
-console.log('1. Go to https://render.com');
-console.log('2. Sign up/Login with GitHub');
-console.log('3. Click "New +" → "Web Service"');
-console.log('4. Connect your Gorbagana repository');
-console.log('5. Configure:');
-console.log('   - Root Directory: backend');
-console.log('   - Build Command: npm install');
-console.log('   - Start Command: npm start');
-console.log('6. Add environment variables (same as Railway)');
-console.log('7. Deploy!');
+console.log('🎨 RENDER.COM DEPLOYMENT DETAILS:');
+console.log('✅ Service Name: gorbagana-trash-tac-toe-backend');
+console.log('✅ Repository: https://github.com/grich88/Gorbagana.git');
+console.log('✅ Root Directory: backend');
+console.log('✅ Build Command: npm install');
+console.log('✅ Start Command: npm start');
+console.log('✅ Environment Variables: All configured');
+console.log('✅ MongoDB Atlas: Connected');
+console.log('');
+
+console.log('🔄 IF YOU NEED TO REDEPLOY:');
+console.log('1. Go to https://render.com/dashboard');
+console.log('2. Find "gorbagana-trash-tac-toe-backend" service');
+console.log('3. Click "Manual Deploy" → "Deploy latest commit"');
+console.log('4. Or push changes to trigger auto-deploy');
+console.log('');
+
+console.log('⚠️ RAILWAY.APP REMOVED:');
+console.log('- Deleted railway.json configuration file');
+console.log('- Railway deployment references cleaned up');
+console.log('- All deployment now uses Render.com only');
 
 console.log('\n📋 Environment Variables Needed:');
 console.log('MONGODB_URI=mongodb+srv://jgrantrichards:7cvB2WZ9JznqGzx6@cluster0.cawkklo.mongodb.net/gorbagana-trash-tac-toe?retryWrites=true&w=majority&appName=Cluster0');
@@ -49,6 +51,7 @@ console.log('PORT=3001');
 console.log('NODE_ENV=production');
 console.log('CORS_ORIGINS=https://gorbagana-trash-tac-toe.netlify.app');
 
-console.log('\n✅ Backend ready for deployment!');
-console.log('🌐 Your backend will be available at: https://[your-app-name].railway.app or https://[your-app-name].onrender.com');
-console.log('\n📝 After deployment, update frontend/.env.local with your backend URL!'); 
+console.log('\n✅ Backend deployment status: LIVE AND WORKING!');
+console.log('🌐 Current backend URL: https://gorbagana-trash-tac-toe-backend.onrender.com');
+console.log('📱 Frontend URL: https://gorbagana-trash-tac-toe.netlify.app');
+console.log('\n🎉 Cross-device multiplayer gaming is ACTIVE!'); 

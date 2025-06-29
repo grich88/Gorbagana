@@ -81,7 +81,7 @@ npm run dev
 
 ### 4. Production Deployment
 
-#### Backend Deployment (Vercel/Railway/Heroku):
+#### Backend Deployment (Render.com - Currently Active):
 ```bash
 cd backend
 # Deploy to your preferred platform
