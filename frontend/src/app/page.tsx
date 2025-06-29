@@ -285,12 +285,13 @@ export default function Home() {
       
       console.log(`🔑 Escrow ID: ${escrowId}`);
 
-      // Testnet mode: Simplified validation without complex blockchain transactions
-      toast.success(`✅ ${wagerAmount.toFixed(6)} $GOR wager validated! (Testnet mode - simplified escrow)`);
+      // Testnet mode: PURE SIMULATION - ZERO blockchain interaction
+      toast.success(`✅ ${wagerAmount.toFixed(6)} $GOR wager validated! (Testnet simulation - no transactions)`);
       
+      // Return immediately - NO WALLET SIGNING
       return {
         escrowAccount: escrowId,
-        txSignature: `demo_${Date.now()}`
+        txSignature: `testnet_simulation_${Date.now()}`
       };
     } catch (error) {
       console.error("Escrow validation failed:", error);
@@ -385,7 +386,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [game, gameId, wallet.publicKey, handleGameCompletion]);
 
-  // Game creation with real escrow
+  // Game creation with testnet simulation
   const createGame = async () => {
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet first!");
@@ -400,11 +401,13 @@ export default function Home() {
     setLoading(true);
     
     try {
-      // Validate wager amount if wager > 0
+      // Validate wager amount if wager > 0 - PURE SIMULATION
       let escrowData = null;
       if (wagerAmount > 0) {
+        console.log("🔍 Starting escrow validation - NO TRANSACTIONS");
         toast("Validating wager amount...");
         escrowData = await createEscrowAccount(wagerAmount);
+        console.log("✅ Escrow validation complete - NO TRANSACTIONS CREATED");
       }
 
       const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
