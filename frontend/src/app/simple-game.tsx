@@ -84,7 +84,7 @@ export default function SimpleGame() {
   };
 
   // Create shared escrow account and deposit wager (real $GOR transaction)
-  const createEscrowDeposit = async (wagerAmount: number, gameId: string, isCreator: boolean = true): Promise<{escrowAccount: string, txSignature: string}> => {
+  const createEscrowDeposit = async (wagerAmount: number, gameId: string, isCreator: boolean = true, existingEscrowAccount?: string): Promise<{escrowAccount: string, txSignature: string}> => {
     console.log(`\n=== Starting Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
     console.log('🔍 Wallet state:', {
       connected: wallet.connected,
@@ -123,15 +123,17 @@ export default function SimpleGame() {
         setEscrowAccount(escrowKeypair); // Store for prize distribution
       } else {
         // Player O deposits to existing escrow account from game data
-        if (!game?.escrowAccount) {
+        const escrowAccountToUse = existingEscrowAccount || game?.escrowAccount;
+        if (!escrowAccountToUse) {
           console.error('❌ Game state:', JSON.stringify(game, null, 2));
+          console.error('❌ Provided escrow account:', existingEscrowAccount);
           throw new Error("Cannot find shared escrow account - game creator must deposit first");
         }
         try {
-          escrowPubkey = new PublicKey(game.escrowAccount);
+          escrowPubkey = new PublicKey(escrowAccountToUse);
           console.log('🔑 EXISTING Shared Escrow Account:', escrowPubkey.toBase58());
         } catch (keyError) {
-          console.error('❌ Invalid escrow account key:', game.escrowAccount);
+          console.error('❌ Invalid escrow account key:', escrowAccountToUse);
           throw new Error("Invalid shared escrow account format");
         }
         // Note: Player O doesn't have the escrow private key, only the creator does
@@ -667,7 +669,7 @@ export default function SimpleGame() {
       // Create matching escrow deposit if wager > 0
       if (existingGame.wager > 0) {
         toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
-        escrowData = await createEscrowDeposit(existingGame.wager, gameId, false); // Player O
+        escrowData = await createEscrowDeposit(existingGame.wager, gameId, false, existingGame.escrowAccount); // Player O
         toast.dismiss();
         console.log('✅ Matching escrow deposit created:', escrowData);
       }
