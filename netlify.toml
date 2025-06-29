@@ -8,13 +8,15 @@
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_ENV = "production"
-  CACHE_BUST_ID = "v5.3-typescript-bypass-2025-01-29-1705"
+  # Skip Netlify Next.js plugin since we use static export
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  CACHE_BUST_ID = "v5.4-plugin-skip-2025-01-29-1710"
   BUILD_TIMESTAMP = "1751204400000"
   FORCE_REBUILD = "true"
   NODE_VERSION = "20"
   NPM_FLAGS = "--no-cache"
-  CACHE_BUST = "v5.3-typescript-bypass-2025-01-29-17-05"
-  BUILD_ID = "typescript-bypass-v5.3"
+  CACHE_BUST = "v5.4-plugin-skip-2025-01-29-17-10"
+  BUILD_ID = "plugin-skip-v5.4"
 
 # NUCLEAR CACHE CLEAR - Force all files to reload
 [[headers]]
@@ -25,10 +27,10 @@
     Pragma = "no-cache"
     Expires = "0"
     # Force new ETag
-    ETag = "v5.3-typescript-bypass"
+    ETag = "v5.4-plugin-skip"
     # Custom headers for verification
-    X-Cache-Bust = "v5.3-typescript-bypass-2025-01-29-17-05"
-    X-Deployment-Time = "2025-01-29-17:05:00"
+    X-Cache-Bust = "v5.4-plugin-skip-2025-01-29-17-10"
+    X-Deployment-Time = "2025-01-29-17:10:00"
     X-RPC-Endpoint = "gorchain.wstf.io"
 
 # Force JS files to reload
@@ -52,7 +54,7 @@
     Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
     Pragma = "no-cache"
     Expires = "0"
-    ETag = "v5.3-typescript-bypass-static"
+    ETag = "v5.4-plugin-skip-static"
 
 [[headers]]
   for = "/*"
