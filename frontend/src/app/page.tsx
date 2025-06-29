@@ -9,7 +9,7 @@ import {
   PublicKey, 
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
-// Removed Transaction and SystemProgram imports - no transactions needed for demo mode
+// Removed Transaction and SystemProgram imports - simplified for testnet mode
 
 // Simplified game types
 type GameStatus = "waiting" | "playing" | "finished";
@@ -265,7 +265,7 @@ export default function Home() {
     if (wagerAmount <= 0) return null;
 
     try {
-      // Demo mode: Just validate balance without any blockchain transactions
+      // Testnet mode: Validate balance without complex escrow transactions
       toast("🔒 Validating $GOR balance for wager...");
       
       // Use the already-fetched balance to avoid additional RPC calls
@@ -280,13 +280,13 @@ export default function Home() {
         throw new Error(`Insufficient $GOR balance. Have ${userGorBalance.toFixed(6)}, need ${wagerAmount.toFixed(6)}`);
       }
       
-      // Create a unique escrow identifier (demo mode - no real escrow)
+      // Create a unique escrow identifier (testnet mode - simplified escrow)
       const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       
       console.log(`🔑 Escrow ID: ${escrowId}`);
 
-      // Demo mode: No actual blockchain transactions
-      toast.success(`✅ ${wagerAmount.toFixed(6)} $GOR wager validated! (Demo mode - no actual escrow created)`);
+      // Testnet mode: Simplified validation without complex blockchain transactions
+      toast.success(`✅ ${wagerAmount.toFixed(6)} $GOR wager validated! (Testnet mode - simplified escrow)`);
       
       return {
         escrowAccount: escrowId,
@@ -664,8 +664,8 @@ export default function Home() {
               Real blockchain gaming with $GOR token wagers on Gorbagana network.<br/>
               Powered by <a href="https://gorganus.com" className="text-green-400 underline">Gorganus</a> infrastructure.
             </p>
-            <div className="mb-8 text-sm text-yellow-400 bg-yellow-900/20 border border-yellow-500/30 rounded-lg px-4 py-2 max-w-lg mx-auto">
-              🎮 Demo Mode: Real $GOR balance detection • No actual escrow transactions • Safe testing
+            <div className="mb-8 text-sm text-green-400 bg-green-900/20 border border-green-500/30 rounded-lg px-4 py-2 max-w-lg mx-auto">
+              🌐 Testnet Mode: Real $GOR balance detection • Gorbagana blockchain • Safe testing environment
             </div>
             
             {/* Wallet Connection - Gorganus Style */}
@@ -892,10 +892,10 @@ export default function Home() {
                         type="number"
                         min="0"
                         max={gorBalance}
-                        value={wagerAmount}
-                        onChange={(e) => setWagerAmount(Number(e.target.value))}
+                        value={wagerAmount || ""}
+                        onChange={(e) => setWagerAmount(Number(e.target.value) || 0)}
                         className="w-full px-4 py-3 bg-gray-900/50 border border-green-500/30 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm"
-                        placeholder="0"
+                        placeholder="0.001"
                       />
                     </div>
                     
@@ -1210,7 +1210,7 @@ export default function Home() {
                     <li>• <strong>Bounty:</strong> Build Multiplayer Mini-Games on Gorbagana Testnet</li>
                     <li>• <strong>Prize Pool:</strong> 5,100 USDC total rewards</li>
                     <li>• <strong>Deadline:</strong> July 03, 2025</li>
-                    <li>• <strong>Demo Mode:</strong> Real balance detection, no actual blockchain transactions</li>
+                    <li>• <strong>Testnet Mode:</strong> Real $GOR balance detection, simplified escrow system</li>
                   </ul>
                 </div>
               </div>

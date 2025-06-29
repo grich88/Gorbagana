@@ -9,14 +9,11 @@ import { toast } from 'react-hot-toast';
 
 // Gorbagana Testnet Configuration
 
-// RPC Endpoint configuration - GORBAGANA ONLY (no Solana fallbacks)
-// Using only verified working Gorbagana endpoints
+// RPC Endpoint configuration - GORCHAIN OFFICIAL ENDPOINT
+// Using the official Gorchain RPC endpoint from documentation
 const RPC_ENDPOINTS = [
-  'https://rpc.gorbagana.wtf', // PRIMARY: Verified working Gorbagana RPC
-  // Note: Other endpoints tested but have DNS resolution issues:
-  // - testnet.gorchain.wstf.io (Non-existent domain)
-  // - testnet.gorbagana.wtf (Non-existent domain) 
-  // - rpc.testnet.gorbagana.com (Non-existent domain)
+  'https://gorchain.wstf.io', // PRIMARY: Official Gorchain RPC from documentation
+  'https://rpc.gorbagana.wtf', // FALLBACK: Alternative Gorbagana RPC
   // NO SOLANA DEVNET FALLBACKS - We want GOR chain only!
 ];
 
@@ -80,9 +77,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // No endpoints working, force primary Gorbagana endpoint anyway
-      console.error('❌ All Gorbagana RPC health checks failed, but forcing primary endpoint');
-      setWorkingEndpoint('https://rpc.gorbagana.wtf');
+      // No endpoints working, force primary Gorchain endpoint anyway
+      console.error('❌ All Gorchain RPC health checks failed, but forcing primary endpoint');
+      setWorkingEndpoint('https://gorchain.wstf.io');
       toast('🔄 Using primary Gorbagana RPC - network ready!', {
         duration: 4000,
         icon: '🎯'
