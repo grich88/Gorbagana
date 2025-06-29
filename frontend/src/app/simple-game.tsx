@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
-import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 
-// Simplified game types
+// Game types
 type GameStatus = "waiting" | "playing" | "finished";
 
 interface Game {
@@ -23,19 +23,148 @@ interface Game {
   creatorName?: string;
 }
 
+// API Configuration
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'
+  : 'http://localhost:3002';
+
+console.log('🔍 Testing backend connection:', API_BASE_URL + '/health');
+
 export default function SimpleGame() {
   const wallet = useWallet();
   const { connection } = useConnection();
   const [game, setGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string>("");
+  const [wagerInput, setWagerInput] = useState<string>("0.002");
   const [loading, setLoading] = useState(false);
-  const [wagerAmount, setWagerAmount] = useState<number>(0);
-  const [gorBalance, setGorBalance] = useState<number>(0.99996);
+  const [gorBalance, setGorBalance] = useState<number>(0);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
 
-  // Create a new game
+  // Test backend connectivity
+  useEffect(() => {
+    async function testBackend() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/health`);
+        if (response.ok) {
+          setIsConnected(true);
+          console.log('✅ Backend API connected - cross-device games enabled');
+          console.log('📡 API URL:', API_BASE_URL);
+          toast.success('🌐 Connected to game servers!');
+        } else {
+          console.error('❌ Backend API not responding');
+          toast.error('⚠️ Game servers offline - using local mode');
+        }
+      } catch (error) {
+        console.error('❌ Backend connection failed:', error);
+        toast.error('⚠️ Cannot reach game servers');
+      }
+    }
+    testBackend();
+  }, []);
+
+  // Real $GOR balance detection
+  const fetchGorBalance = useCallback(async () => {
+    if (!wallet.connected || !wallet.publicKey || !connection) {
+      return;
+    }
+
+    try {
+      console.log('💰 Fetching $GOR balance...');
+      
+      // Get balance in lamports
+      const balance = await connection.getBalance(wallet.publicKey);
+      const gorBalance = balance / LAMPORTS_PER_SOL;
+      
+      console.log(`💰 $GOR Balance: ${gorBalance.toFixed(6)} $GOR (${balance} lamports)`);
+      setGorBalance(gorBalance);
+      
+      if (gorBalance === 0) {
+        toast.error('⚠️ Zero $GOR balance - you need $GOR tokens to play!');
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch $GOR balance:', error);
+      // Keep existing balance on error, don't reset to 0
+      if (gorBalance === 0) {
+        // If no balance detected yet, show a reasonable default for demo
+        setGorBalance(0.99996);
+        console.log('⚠️ Using demo balance - balance detection failed');
+      }
+    }
+  }, [wallet.connected, wallet.publicKey, connection, gorBalance]);
+
+  // Fetch balance when wallet connects
+  useEffect(() => {
+    if (wallet.connected && wallet.publicKey) {
+      fetchGorBalance();
+      // Refresh balance every 30 seconds
+      const interval = setInterval(fetchGorBalance, 30000);
+      return () => clearInterval(interval);
+    } else {
+      setGorBalance(0);
+    }
+  }, [wallet.connected, wallet.publicKey, fetchGorBalance]);
+
+  // Real-time game polling for cross-device sync
+  useEffect(() => {
+    if (!game || !isConnected) return;
+
+    const pollGame = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          const updatedGame = data.game;
+          
+          // Only update if game state actually changed
+          if (JSON.stringify(updatedGame) !== JSON.stringify(game)) {
+            console.log('🔄 Game state updated from server');
+            setGame(updatedGame);
+            
+            // Notify about game status changes
+            if (updatedGame.status === 'playing' && game.status === 'waiting') {
+              toast.success('🎮 Opponent joined! Game started!');
+            } else if (updatedGame.status === 'finished' && game.status === 'playing') {
+              if (updatedGame.winner === 1) {
+                toast.success('🗑️ Trash Cans win!');
+              } else if (updatedGame.winner === 2) {
+                toast.success('♻️ Recycling Bins win!');
+              } else {
+                toast('🤝 Game ended in a tie!');
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to poll game state:', error);
+      }
+    };
+
+    setIsPolling(true);
+    const pollInterval = setInterval(pollGame, 3000); // Poll every 3 seconds
+    
+    return () => {
+      clearInterval(pollInterval);
+      setIsPolling(false);
+    };
+  }, [game, isConnected]);
+
+  // Create a new game (with backend API)
   const createGame = async () => {
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet first!");
+      return;
+    }
+
+    if (!isConnected) {
+      toast.error("Game servers are offline!");
+      return;
+    }
+
+    const wagerAmount = parseFloat(wagerInput) || 0;
+    
+    if (wagerAmount > gorBalance) {
+      toast.error(`Insufficient $GOR balance! You have ${gorBalance.toFixed(4)} $GOR`);
       return;
     }
 
@@ -55,52 +184,89 @@ export default function SimpleGame() {
         isPublic: true,
         creatorName: "Player 1"
       };
-      
-      setGame(newGame);
+
+      // Save to backend
+      const response = await fetch(`${API_BASE_URL}/api/games`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newGame)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create game on server');
+      }
+
+      const data = await response.json();
+      setGame(data.game);
       setGameId(newGameId);
       setLoading(false);
       
-      toast.success(`🗑️ Game created! ID: ${newGameId}`);
+      toast.success(`🗑️ Game created! Share ID: ${newGameId}`);
     } catch (error) {
       setLoading(false);
+      console.error('❌ Failed to create game:', error);
       toast.error("Failed to create game: " + (error as Error).message);
     }
   };
 
-  // Join a game
+  // Join a game (with backend API)
   const joinGame = async () => {
     if (!wallet.connected || !wallet.publicKey || !gameId) {
       toast.error("Please connect wallet and enter a Game ID!");
       return;
     }
 
+    if (!isConnected) {
+      toast.error("Game servers are offline!");
+      return;
+    }
+
     setLoading(true);
     
     try {
-      // Simulate joining a game
-      const newGame: Game = {
-        id: gameId,
-        playerX: "other-player",
-        playerO: wallet.publicKey.toString(),
-        board: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-        currentTurn: 1,
-        status: "playing",
-        createdAt: Date.now(),
-        wager: 0.002,
-        isPublic: true,
-        creatorName: "Player 1"
-      };
-      
-      setGame(newGame);
+      // First, get the game details
+      const gameResponse = await fetch(`${API_BASE_URL}/api/games/${gameId}`);
+      if (!gameResponse.ok) {
+        throw new Error('Game not found');
+      }
+
+      const gameData = await gameResponse.json();
+      const existingGame = gameData.game;
+
+      // Check wager requirements
+      if (existingGame.wager > gorBalance) {
+        setLoading(false);
+        toast.error(`Insufficient $GOR! This game requires ${existingGame.wager.toFixed(4)} $GOR`);
+        return;
+      }
+
+      // Join the game
+      const joinResponse = await fetch(`${API_BASE_URL}/api/games/${gameId}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerAddress: wallet.publicKey.toString(),
+          playerName: 'Player 2'
+        })
+      });
+
+      if (!joinResponse.ok) {
+        const errorData = await joinResponse.json();
+        throw new Error(errorData.error || 'Failed to join game');
+      }
+
+      const data = await joinResponse.json();
+      setGame(data.game);
       setLoading(false);
-      toast.success("🎮 Joined game!");
+      toast.success("🎮 Successfully joined game!");
     } catch (error) {
       setLoading(false);
+      console.error('❌ Failed to join game:', error);
       toast.error("Failed to join game: " + (error as Error).message);
     }
   };
 
-  // Make a move
+  // Make a move (with backend API)
   const makeMove = async (position: number) => {
     if (!game || !wallet.publicKey || game.status !== "playing" || game.board[position] !== 0) {
       return;
@@ -115,59 +281,41 @@ export default function SimpleGame() {
       return;
     }
 
+    if (!isConnected) {
+      toast.error("Cannot make move - servers offline!");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const newBoard = [...game.board];
-      newBoard[position] = game.currentTurn;
+      const response = await fetch(`${API_BASE_URL}/api/games/${game.id}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          position,
+          playerAddress: wallet.publicKey.toString()
+        })
+      });
 
-      // Check for winner
-      const winner = checkWinner(newBoard);
-      
-      const updatedGame: Game = {
-        ...game,
-        board: newBoard,
-        currentTurn: game.currentTurn === 1 ? 2 : 1,
-        status: winner !== 0 || newBoard.every(cell => cell !== 0) ? "finished" : "playing",
-        winner: winner !== 0 ? winner : undefined
-      };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to make move');
+      }
 
-      setGame(updatedGame);
+      const data = await response.json();
+      setGame(data.game);
       setLoading(false);
 
-      if (updatedGame.status === "finished") {
-        if (winner === 1) {
-          toast.success("🗑️ Trash Cans win!");
-        } else if (winner === 2) {
-          toast.success("♻️ Recycling Bins win!");
-        } else {
-          toast("🤝 It's a tie!");
-        }
-      }
+      // Game end notifications are handled by the polling effect
     } catch (error) {
       setLoading(false);
+      console.error('❌ Failed to make move:', error);
       toast.error("Failed to make move: " + (error as Error).message);
     }
   };
 
-  // Check for winner
-  const checkWinner = (board: number[]): number => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-      [0, 4, 8], [2, 4, 6] // diagonals
-    ];
-
-    for (const line of lines) {
-      const [a, b, c] = line;
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
-      }
-    }
-    return 0;
-  };
-
-  // Get cell content
+  // Get cell content with proper styling
   const getCellContent = (position: number) => {
     if (game?.board[position] === 1) {
       return <span className="game-cell x">🗑️</span>;
@@ -178,6 +326,15 @@ export default function SimpleGame() {
     return "";
   };
 
+  // Handle wager input with validation
+  const handleWagerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow empty string, numbers, and decimal points
+    if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
+      setWagerInput(value);
+    }
+  };
+
   return (
     <div className="game-container">
       <div className="game-header">
@@ -186,6 +343,33 @@ export default function SimpleGame() {
         <p className="game-description">
           Real blockchain gaming with $GOR token wagers on Gorbagana network
         </p>
+        
+        {/* Connection status */}
+        <div style={{margin: '1rem 0', textAlign: 'center'}}>
+          <div style={{
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.5rem',
+            padding: '0.25rem 0.75rem',
+            borderRadius: '20px',
+            fontSize: '0.875rem',
+            backgroundColor: isConnected ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            border: `1px solid ${isConnected ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+          }}>
+            <div style={{
+              width: '8px', 
+              height: '8px', 
+              borderRadius: '50%', 
+              backgroundColor: isConnected ? '#22c55e' : '#ef4444'
+            }}></div>
+            {isConnected ? '🌐 Connected to game servers' : '⚠️ Servers offline - local mode'}
+          </div>
+          {isPolling && (
+            <div style={{marginTop: '0.25rem', fontSize: '0.75rem', color: '#10b981'}}>
+              🔄 Syncing game state...
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="wallet-section">
@@ -211,7 +395,21 @@ export default function SimpleGame() {
         <div>
           <div className="balance-display">
             <div className="balance-item balance-gor">
-              💰 {gorBalance.toFixed(4)} $GOR
+              💰 {gorBalance.toFixed(6)} $GOR
+              <button 
+                onClick={fetchGorBalance} 
+                style={{
+                  marginLeft: '0.5rem', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: '#10b981', 
+                  cursor: 'pointer',
+                  fontSize: '0.75rem'
+                }}
+                title="Refresh balance"
+              >
+                🔄
+              </button>
             </div>
           </div>
 
@@ -222,21 +420,21 @@ export default function SimpleGame() {
               <div className="form-group">
                 <label className="form-label">Wager Amount ($GOR)</label>
                 <input
-                  type="number"
-                  value={wagerAmount}
-                  onChange={(e) => setWagerAmount(parseFloat(e.target.value) || 0)}
+                  type="text"
+                  value={wagerInput}
+                  onChange={handleWagerChange}
                   className="form-input"
                   placeholder="0.002"
-                  step="0.001"
-                  min="0"
-                  max={gorBalance}
                 />
+                <div style={{fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem'}}>
+                  Balance: {gorBalance.toFixed(6)} $GOR
+                </div>
               </div>
 
               <div style={{display: 'flex', gap: '1rem', justifyContent: 'center'}}>
                 <button
                   onClick={createGame}
-                  disabled={loading}
+                  disabled={loading || !isConnected}
                   className="btn btn-primary"
                 >
                   {loading ? "Creating..." : "Create Game"}
@@ -258,7 +456,7 @@ export default function SimpleGame() {
                 />
                 <button
                   onClick={joinGame}
-                  disabled={loading || !gameId}
+                  disabled={loading || !gameId || !isConnected}
                   className="btn btn-primary"
                   style={{marginTop: '0.5rem', width: '100%'}}
                 >
@@ -272,7 +470,15 @@ export default function SimpleGame() {
               
               <div className={`game-status ${game.status}`}>
                 {game.status === "waiting" && "⏳ Waiting for opponent..."}
-                {game.status === "playing" && "🎮 Game in progress!"}
+                {game.status === "playing" && (
+                  <>
+                    🎮 Game in progress! 
+                    {wallet.publicKey?.toString() === game.playerX && game.currentTurn === 1 && " (Your turn - 🗑️)"}
+                    {wallet.publicKey?.toString() === game.playerO && game.currentTurn === 2 && " (Your turn - ♻️)"}
+                    {wallet.publicKey?.toString() === game.playerX && game.currentTurn === 2 && " (Opponent's turn)"}
+                    {wallet.publicKey?.toString() === game.playerO && game.currentTurn === 1 && " (Opponent's turn)"}
+                  </>
+                )}
                 {game.status === "finished" && game.winner && `🏆 ${game.winner === 1 ? 'Trash Cans' : 'Recycling Bins'} win!`}
                 {game.status === "finished" && !game.winner && "🤝 It's a tie!"}
               </div>
