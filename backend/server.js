@@ -181,7 +181,7 @@ app.delete('/api/games/:gameId', async (req, res) => {
 app.post('/api/games/:gameId/join', async (req, res) => {
   try {
     const { gameId } = req.params;
-    const { playerAddress, playerName } = req.body;
+    const { playerAddress, playerName, playerODeposit } = req.body;
     
     const game = await db.getGame(gameId);
     if (!game) {
@@ -199,11 +199,23 @@ app.post('/api/games/:gameId/join', async (req, res) => {
     if (game.playerO) {
       return res.status(400).json({ error: 'Game is already full' });
     }
+
+    // If game has a wager, ensure player has made escrow deposit
+    if (game.wager > 0 && !playerODeposit) {
+      return res.status(400).json({ error: 'Escrow deposit required for wagered games' });
+    }
     
-    const success = await db.updateGame(gameId, {
+    const updateData = {
       playerO: playerAddress,
       status: 'playing'
-    });
+    };
+
+    // Add escrow deposit signature if provided
+    if (playerODeposit) {
+      updateData.playerODeposit = playerODeposit;
+    }
+    
+    const success = await db.updateGame(gameId, updateData);
     
     if (!success) {
       return res.status(500).json({ error: 'Failed to update game' });
@@ -211,7 +223,7 @@ app.post('/api/games/:gameId/join', async (req, res) => {
     
     const updatedGame = await db.getGame(gameId);
     
-    console.log(`🎮 Player ${playerAddress} joined game: ${gameId}`);
+    console.log(`🎮 Player ${playerAddress} joined game: ${gameId}${playerODeposit ? ' with escrow deposit: ' + playerODeposit : ''}`);
     res.json({ success: true, game: updatedGame });
   } catch (error) {
     console.error('Error joining game:', error);

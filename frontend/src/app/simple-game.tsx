@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, PublicKey, Connection, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
 
 // Game types
 type GameStatus = "waiting" | "playing" | "finished";
@@ -21,12 +21,22 @@ interface Game {
   wager: number;
   isPublic: boolean;
   creatorName?: string;
+  escrowAccount?: string;
+  txSignature?: string;
+  playerXDeposit?: string;
+  playerODeposit?: string;
 }
 
 // API Configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'
   : 'http://localhost:3002';
+
+// Gorbagana Connection Configuration (matches user's script)
+const GORBAGANA_RPC = 'https://rpc.gorbagana.wtf/';
+const POLL_INTERVAL = 2000; // Poll every 2 seconds
+const MAX_POLL_ATTEMPTS = 30; // 60 seconds total
+const SEND_RETRIES = 5; // Retry sending up to 5 times
 
 console.log('🔍 Testing backend connection:', API_BASE_URL + '/health');
 
@@ -39,6 +49,147 @@ export default function SimpleGame() {
   const [gorBalance, setGorBalance] = useState<number>(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
+  const [escrowAccount, setEscrowAccount] = useState<Keypair | null>(null);
+
+  // Create Gorbagana connection (matches user's script)
+  const connection = new Connection(GORBAGANA_RPC, {
+    commitment: 'confirmed',
+    disableRetryOnRateLimit: false,
+    wsEndpoint: '', // Explicitly disable WebSocket
+    httpHeaders: { 'User-Agent': 'gorbagana-trash-tac-toe' },
+  });
+
+  // Helper function to confirm transaction via polling (from user's script)
+  const confirmTransaction = async (signature: string): Promise<{status: string, error?: any}> => {
+    console.log('🔄 Polling for transaction confirmation...');
+    for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+      try {
+        const { value } = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+        const status = value[0];
+        if (status) {
+          if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') {
+            console.log(`✅ Transaction confirmed after ${i + 1} polls!`);
+            return status.err ? { status: 'Failed', error: status.err } : { status: 'Success' };
+          }
+          console.log(`🔄 Poll ${i + 1}/${MAX_POLL_ATTEMPTS}: Transaction not yet confirmed...`);
+        } else {
+          console.log(`🔄 Poll ${i + 1}/${MAX_POLL_ATTEMPTS}: Transaction status not found...`);
+        }
+      } catch (error: any) {
+        console.error(`❌ Poll ${i + 1} error:`, error.message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+    }
+    throw new Error('Transaction confirmation timed out after 60 seconds.');
+  };
+
+  // Create escrow account and deposit wager (real $GOR transaction)
+  const createEscrowDeposit = async (wagerAmount: number): Promise<{escrowAccount: string, txSignature: string}> => {
+    if (!wallet.publicKey || !wallet.signTransaction) {
+      throw new Error("Wallet not connected or doesn't support signing");
+    }
+
+    if (wagerAmount <= 0) {
+      throw new Error("Wager amount must be greater than 0");
+    }
+
+    console.log(`\n=== Creating Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
+
+    try {
+      // Create a new escrow account
+      const escrowKeypair = Keypair.generate();
+      const escrowPubkey = escrowKeypair.publicKey;
+      
+      console.log('🔑 Escrow Account:', escrowPubkey.toBase58());
+      console.log('👤 Player:', wallet.publicKey.toBase58());
+
+      // Check player balance
+      const playerBalance = await connection.getBalance(wallet.publicKey);
+      const wagerLamports = Math.floor(wagerAmount * LAMPORTS_PER_SOL);
+      const minRequired = wagerLamports + 5000; // Add fee buffer
+
+      console.log(`💰 Player Balance: ${(playerBalance / LAMPORTS_PER_SOL).toFixed(6)} $GOR`);
+      console.log(`🎯 Wager Required: ${wagerAmount.toFixed(6)} $GOR`);
+
+      if (playerBalance < minRequired) {
+        throw new Error(`Insufficient $GOR balance. Have ${(playerBalance / LAMPORTS_PER_SOL).toFixed(6)}, need ${(minRequired / LAMPORTS_PER_SOL).toFixed(6)}`);
+      }
+
+      // Create transaction to transfer wager to escrow account
+      console.log('📝 Creating escrow deposit transaction...');
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: wallet.publicKey,
+          toPubkey: escrowPubkey,
+          lamports: wagerLamports,
+        })
+      );
+      
+      transaction.feePayer = wallet.publicKey;
+      transaction.recentBlockhash = blockhash;
+
+      // Sign transaction with wallet
+      console.log('✍️ Requesting wallet signature for escrow deposit...');
+      toast.loading('🔐 Please sign the transaction to deposit your wager...', { duration: 10000 });
+      
+      const signedTransaction = await wallet.signTransaction(transaction);
+
+      // Send transaction with retries
+      let signature: string = '';
+      for (let attempt = 1; attempt <= SEND_RETRIES; attempt++) {
+        try {
+          console.log(`📤 Sending transaction (Attempt ${attempt}/${SEND_RETRIES})...`);
+          signature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+            skipPreflight: false,
+            maxRetries: 0, // Handle retries manually
+          });
+          console.log('✅ Transaction sent! Signature:', signature);
+          break;
+        } catch (sendError: any) {
+          console.error(`❌ Send attempt ${attempt} failed:`, sendError.message);
+          if (attempt === SEND_RETRIES) {
+            throw new Error('Failed to send transaction after retries: ' + sendError.message);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
+
+      // Confirm transaction
+      console.log('⏳ Confirming escrow deposit transaction...');
+      toast.loading('⏳ Confirming your deposit on Gorbagana network...', { duration: 30000 });
+      
+      const confirmResult = await confirmTransaction(signature);
+      if (confirmResult.status === 'Failed') {
+        throw new Error('Transaction failed: ' + JSON.stringify(confirmResult.error));
+      }
+
+      // Verify escrow account balance
+      const escrowBalance = await connection.getBalance(escrowPubkey);
+      const actualDeposit = escrowBalance / LAMPORTS_PER_SOL;
+      
+      console.log(`✅ Escrow deposit confirmed!`);
+      console.log(`💰 Escrow Balance: ${actualDeposit.toFixed(6)} $GOR`);
+      console.log(`🔗 Explorer: https://gorexplorer.net/lookup.html#tx/${signature}`);
+
+      toast.dismiss();
+      toast.success(`🔒 ${actualDeposit.toFixed(6)} $GOR deposited to escrow!`);
+
+      // Store escrow keypair for later prize distribution
+      setEscrowAccount(escrowKeypair);
+
+      return {
+        escrowAccount: escrowPubkey.toBase58(),
+        txSignature: signature
+      };
+
+    } catch (error: any) {
+      toast.dismiss();
+      console.error('❌ Escrow deposit failed:', error);
+      throw error;
+    }
+  };
 
   // Test backend connectivity
   useEffect(() => {
@@ -164,6 +315,9 @@ export default function SimpleGame() {
               } else {
                 toast('🤝 Game ended in a tie!');
               }
+              
+              // Handle prize distribution
+              await handlePrizeDistribution(updatedGame);
             }
           }
         }
@@ -181,7 +335,80 @@ export default function SimpleGame() {
     };
   }, [game, isConnected]);
 
-  // Create a new game (with backend API)
+  // Handle prize distribution when game ends
+  const handlePrizeDistribution = async (finishedGame: Game) => {
+    if (!escrowAccount || !wallet.publicKey || finishedGame.wager <= 0) {
+      return;
+    }
+
+    try {
+      console.log('🏆 Distributing prizes...');
+      
+      const isPlayerX = wallet.publicKey.toString() === finishedGame.playerX;
+      const isPlayerO = wallet.publicKey.toString() === finishedGame.playerO;
+      
+      if (!isPlayerX && !isPlayerO) {
+        return; // Not a player in this game
+      }
+
+      const isWinner = (finishedGame.winner === 1 && isPlayerX) || (finishedGame.winner === 2 && isPlayerO);
+      
+      if (isWinner) {
+        // Winner gets both deposits (2x wager)
+        const prizeAmount = finishedGame.wager * 2;
+        await transferPrize(prizeAmount, wallet.publicKey);
+        toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR!`);
+      } else if (finishedGame.winner === 0) {
+        // Tie - both players get their deposits back
+        await transferPrize(finishedGame.wager, wallet.publicKey);
+        toast.success(`🤝 Tie game - ${finishedGame.wager.toFixed(6)} $GOR returned!`);
+      } else {
+        toast.error('😢 You lost this game. Better luck next time!');
+      }
+      
+    } catch (error) {
+      console.error('❌ Prize distribution failed:', error);
+      toast.error('⚠️ Prize distribution failed - contact support');
+    }
+  };
+
+  // Transfer prize from escrow to winner
+  const transferPrize = async (amount: number, recipient: PublicKey) => {
+    if (!escrowAccount) {
+      throw new Error('No escrow account available');
+    }
+
+    try {
+      const prizeLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+      
+      console.log(`💰 Transferring ${amount.toFixed(6)} $GOR to winner...`);
+      
+      const { blockhash } = await connection.getLatestBlockhash();
+      
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: escrowAccount.publicKey,
+          toPubkey: recipient,
+          lamports: prizeLamports,
+        })
+      );
+      
+      transaction.feePayer = escrowAccount.publicKey;
+      transaction.recentBlockhash = blockhash;
+      transaction.sign(escrowAccount);
+
+      const signature = await connection.sendRawTransaction(transaction.serialize());
+      await confirmTransaction(signature);
+      
+      console.log(`✅ Prize transferred! Signature: ${signature}`);
+      
+    } catch (error) {
+      console.error('❌ Prize transfer failed:', error);
+      throw error;
+    }
+  };
+
+  // Create a new game (with real escrow deposit)
   const createGame = async () => {
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet first!");
@@ -203,6 +430,16 @@ export default function SimpleGame() {
     setLoading(true);
     
     try {
+      let escrowData = null;
+      
+      // Create escrow deposit if wager > 0
+      if (wagerAmount > 0) {
+        toast.loading('🔐 Creating escrow deposit...', { duration: 5000 });
+        escrowData = await createEscrowDeposit(wagerAmount);
+        toast.dismiss();
+        console.log('✅ Escrow deposit created:', escrowData);
+      }
+
       const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
       const newGame: Game = {
         id: newGameId,
@@ -214,7 +451,10 @@ export default function SimpleGame() {
         createdAt: Date.now(),
         wager: wagerAmount,
         isPublic: true,
-        creatorName: "Player 1"
+        creatorName: "Player 1",
+        escrowAccount: escrowData?.escrowAccount,
+        txSignature: escrowData?.txSignature,
+        playerXDeposit: escrowData?.txSignature
       };
 
       // Save to backend
@@ -233,7 +473,15 @@ export default function SimpleGame() {
       setGameId(newGameId);
       setLoading(false);
       
-      toast.success(`🗑️ Game created! Share ID: ${newGameId}`);
+      if (wagerAmount > 0) {
+        toast.success(`🔒 Game created with ${wagerAmount.toFixed(6)} $GOR wager! Share ID: ${newGameId}`);
+      } else {
+        toast.success(`🗑️ Free game created! Share ID: ${newGameId}`);
+      }
+      
+      // Refresh balance after transaction
+      setTimeout(fetchGorBalance, 2000);
+      
     } catch (error) {
       setLoading(false);
       console.error('❌ Failed to create game:', error);
@@ -241,7 +489,7 @@ export default function SimpleGame() {
     }
   };
 
-  // Join a game (with backend API)
+  // Join a game (with matching escrow deposit)
   const joinGame = async () => {
     if (!wallet.connected || !wallet.publicKey || !gameId) {
       toast.error("Please connect wallet and enter a Game ID!");
@@ -272,13 +520,24 @@ export default function SimpleGame() {
         return;
       }
 
+      let escrowData = null;
+      
+      // Create matching escrow deposit if wager > 0
+      if (existingGame.wager > 0) {
+        toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
+        escrowData = await createEscrowDeposit(existingGame.wager);
+        toast.dismiss();
+        console.log('✅ Matching escrow deposit created:', escrowData);
+      }
+
       // Join the game
       const joinResponse = await fetch(`${API_BASE_URL}/api/games/${gameId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerAddress: wallet.publicKey.toString(),
-          playerName: 'Player 2'
+          playerName: 'Player 2',
+          playerODeposit: escrowData?.txSignature
         })
       });
 
@@ -290,7 +549,16 @@ export default function SimpleGame() {
       const data = await joinResponse.json();
       setGame(data.game);
       setLoading(false);
-      toast.success("🎮 Successfully joined game!");
+      
+      if (existingGame.wager > 0) {
+        toast.success(`🔒 Joined game with ${existingGame.wager.toFixed(6)} $GOR wager!`);
+      } else {
+        toast.success("🎮 Successfully joined free game!");
+      }
+      
+      // Refresh balance after transaction
+      setTimeout(fetchGorBalance, 2000);
+      
     } catch (error) {
       setLoading(false);
       console.error('❌ Failed to join game:', error);
