@@ -290,7 +290,7 @@ export default function Home() {
       // Skip transaction for now to avoid timeout issues
       // In production, implement proper escrow smart contract
       
-      toast.success(`✅ ${wagerAmount.toFixed(5)} $GOR wager validated! (Demo mode - no actual transfer)`);
+      toast.success(`✅ ${wagerAmount.toFixed(5)} $GOR wager validated! (Demo mode - no blockchain transaction)`);
       
       return {
         escrowAccount: escrowId,
