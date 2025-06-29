@@ -4,6 +4,10 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
+  // FORCE DIFFERENT BUILD HASH TO BYPASS CACHE
+  generateBuildId: async () => {
+    return 'gorchain-fix-' + Date.now()
+  },
   webpack: (config, { isServer }) => {
     // Handle Node.js polyfills for browser
     if (!isServer) {

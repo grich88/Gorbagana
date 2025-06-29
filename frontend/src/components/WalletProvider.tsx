@@ -28,8 +28,11 @@ const RPC_ENDPOINTS = [
 ];
 
 // CACHE VERIFICATION: Console should show gorchain.wstf.io NOT rpc.gorbagana.wtf
+const DEPLOYMENT_TIMESTAMP = '2025-01-29-16:45:00-v5.0-FINAL-ATTEMPT';
 console.log('🚀 CACHE BUST v5.0 - RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
 console.log('✅ VERIFICATION: Should be gorchain.wstf.io NOT rpc.gorbagana.wtf');
+console.log('⏰ DEPLOYMENT TIMESTAMP:', DEPLOYMENT_TIMESTAMP);
+console.log('🔍 If you see old timestamp or rpc.gorbagana.wtf, CACHE NOT CLEARED!');
 
 // Test RPC endpoint connectivity with better error handling
 async function testRPCEndpoint(endpoint: string): Promise<boolean> {

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cache Test - v5.0</title>
+</head>
+<body>
+    <h1>🚀 CACHE TEST v5.0 - GORCHAIN FIX</h1>
+    <p><strong>Timestamp:</strong> 2025-01-29 16:45:00</p>
+    <p><strong>Build ID:</strong> v5-ultra-aggressive-gorchain-fix</p>
+    <p><strong>Expected RPC:</strong> https://gorchain.wstf.io</p>
+    <p><strong>Status:</strong> If you see this, Netlify deployment is working</p>
+    
+    <script>
+        console.log('🚀 CACHE TEST v5.0 - This page deployed successfully');
+        console.log('✅ Expected RPC: https://gorchain.wstf.io');
+        console.log('❌ Should NOT see: https://rpc.gorbagana.wtf');
+        
+        // Test if the main JS files are loading the correct endpoints
+        fetch('/_next/static/chunks/pages/_app.js')
+            .then(response => response.text())
+            .then(text => {
+                if (text.includes('rpc.gorbagana.wtf')) {
+                    console.error('❌ CACHE NOT CLEARED: Old RPC endpoint found in _app.js');
+                } else if (text.includes('gorchain.wstf.io')) {
+                    console.log('✅ CACHE CLEARED: New RPC endpoint found in _app.js');
+                } else {
+                    console.log('ℹ️ No RPC endpoint found in _app.js (might be in other chunks)');
+                }
+            })
+            .catch(err => console.log('Could not fetch _app.js for testing'));
+    </script>
+</body>
+</html> 
