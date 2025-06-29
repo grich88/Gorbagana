@@ -251,7 +251,7 @@ export default function Home() {
     gameStorage.cleanupOldGames();
   }, []);
 
-  // Load public games from cross-device storage
+  // Load public games from cross-device storage (optimized polling)
   useEffect(() => {
     const loadPublicGames = async () => {
       try {
@@ -264,9 +264,15 @@ export default function Home() {
     };
 
     loadPublicGames();
-    const interval = setInterval(loadPublicGames, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+    // Only poll when public lobby is visible and less frequently
+    let interval: NodeJS.Timeout | null = null;
+    if (showPublicLobby) {
+      interval = setInterval(loadPublicGames, 15000); // Refresh every 15 seconds only when lobby is open
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showPublicLobby]); // Depend on lobby visibility
 
   // Handle game completion
   const handleGameCompletion = useCallback(async (completedGame: Game) => {
@@ -279,9 +285,9 @@ export default function Home() {
     }
   }, []);
 
-  // Poll for game updates every 3 seconds
+  // Optimized game polling - only when game is active
   useEffect(() => {
-    if (!game || !gameId) return;
+    if (!game || !gameId || game.status === "finished") return;
 
     const pollGameUpdates = async () => {
       try {
@@ -326,7 +332,9 @@ export default function Home() {
       }
     };
 
-    const interval = setInterval(pollGameUpdates, 3000);
+    // Reduce polling frequency and only poll when game is active
+    const pollInterval = game.status === "waiting" ? 8000 : 6000; // 8s for waiting, 6s for playing
+    const interval = setInterval(pollGameUpdates, pollInterval);
     return () => clearInterval(interval);
   }, [game, gameId, wallet.publicKey, handleGameCompletion]);
 

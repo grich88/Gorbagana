@@ -28,9 +28,9 @@ const RPC_ENDPOINTS = [
 ];
 
 // CACHE VERIFICATION: Console should show gorchain.wstf.io NOT rpc.gorbagana.wtf
-const DEPLOYMENT_TIMESTAMP = '🔥 ULTRA-FINAL-v5.1-2025-01-29-16:51:00 🔥';
-const CACHE_BUST_ID = 'GORCHAIN-FIX-FINAL-v5.1-' + Date.now();
-console.log('🔥🔥🔥 ULTRA CACHE BUST v5.1 - RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
+const DEPLOYMENT_TIMESTAMP = '🔥 PRODUCTION-v5.4-2025-01-29-17:10:00 🔥';
+const CACHE_BUST_ID = 'PRODUCTION-READY-v5.4-' + Date.now();
+console.log('🔥🔥🔥 PRODUCTION v5.4 - RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
 console.log('✅✅✅ VERIFICATION: Should be https://gorchain.wstf.io NOT rpc.gorbagana.wtf');
 console.log('⏰⏰⏰ DEPLOYMENT TIMESTAMP:', DEPLOYMENT_TIMESTAMP);
 console.log('🎯🎯🎯 CACHE BUST ID:', CACHE_BUST_ID);
@@ -105,6 +105,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [workingEndpoint, setWorkingEndpoint] = useState<string>(RPC_ENDPOINTS[0]);
   const [isTestingRPC, setIsTestingRPC] = useState(true);
 
+  // Prevent wallet extension conflicts
+  useEffect(() => {
+    // Give wallets time to initialize
+    const timer = setTimeout(() => {
+      // Check if there are conflicts and warn user
+      if (typeof window !== 'undefined' && window.ethereum) {
+        console.log('🔍 Multiple wallet extensions detected - Backpack preferred for Gorbagana');
+        if (window.solana?.isBackpack) {
+          console.log('✅ Backpack detected and ready for Gorbagana');
+        }
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // Test RPC endpoints on mount
   useEffect(() => {
     async function findWorkingEndpoint() {
@@ -114,7 +130,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (RPC_ENDPOINTS[0].includes('gorbagana') || RPC_ENDPOINTS[0].includes('gorchain')) {
         console.log(`🎯 Forcing Gorbagana endpoint: ${RPC_ENDPOINTS[0]} (bypassing health check)`);
         setWorkingEndpoint(RPC_ENDPOINTS[0]);
-        toast.success('🎒 Backpack + Gorbagana Network Ready - $GOR Network Active!');
+        // Don't show toast here to reduce noise
         setIsTestingRPC(false);
         return;
       }
