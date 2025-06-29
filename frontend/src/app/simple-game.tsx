@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
 import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
@@ -32,7 +32,6 @@ console.log('🔍 Testing backend connection:', API_BASE_URL + '/health');
 
 export default function SimpleGame() {
   const wallet = useWallet();
-  const { connection } = useConnection();
   const [game, setGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string>("");
   const [wagerInput, setWagerInput] = useState<string>("0.002");
@@ -65,33 +64,52 @@ export default function SimpleGame() {
 
   // Real $GOR balance detection
   const fetchGorBalance = useCallback(async () => {
-    if (!wallet.connected || !wallet.publicKey || !connection) {
+    if (!wallet.connected || !wallet.publicKey) {
       return;
     }
 
     try {
-      console.log('💰 Fetching $GOR balance...');
+      console.log('💰 Fetching $GOR balance via backend proxy...');
       
-      // Get balance in lamports
-      const balance = await connection.getBalance(wallet.publicKey);
-      const gorBalance = balance / LAMPORTS_PER_SOL;
+      const walletAddress = wallet.publicKey.toString();
+      const response = await fetch(`${API_BASE_URL}/api/balance/${walletAddress}`);
       
-      console.log(`💰 $GOR Balance: ${gorBalance.toFixed(6)} $GOR (${balance} lamports)`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log(`💰 Balance Response:`, data);
+      
+      if (data.error && !data.gor) {
+        throw new Error(data.error);
+      }
+      
+      const gorBalance = data.gor;
+      console.log(`💰 $GOR Balance: ${gorBalance.toFixed(6)} $GOR (${data.lamports} lamports) via ${data.endpoint}`);
+      
       setGorBalance(gorBalance);
       
-      if (gorBalance === 0) {
+      // Show warnings for demo/fallback balances
+      if (data.demo) {
+        console.log('⚠️ Using demo balance - RPC endpoints unavailable');
+        toast('⚠️ Demo balance - RPC connection failed', { duration: 3000 });
+      }
+      
+      if (gorBalance === 0 && !data.demo) {
         toast.error('⚠️ Zero $GOR balance - you need $GOR tokens to play!');
       }
+      
     } catch (error) {
-      console.error('❌ Failed to fetch $GOR balance:', error);
-      // Keep existing balance on error, don't reset to 0
-      if (gorBalance === 0) {
-        // If no balance detected yet, show a reasonable default for demo
-        setGorBalance(0.99996);
-        console.log('⚠️ Using demo balance - balance detection failed');
-      }
+      console.error('❌ Failed to fetch $GOR balance via proxy:', error);
+      
+      // On connection error, set demo balance if no balance exists
+      setGorBalance(prev => prev || 0.99996);
+      console.log('⚠️ Using fallback demo balance - proxy connection failed');
+      toast.error('⚠️ Balance service unavailable - using demo balance');
     }
-  }, [wallet.connected, wallet.publicKey, connection, gorBalance]);
+  }, [wallet.connected, wallet.publicKey]);
 
   // Fetch balance when wallet connects
   useEffect(() => {

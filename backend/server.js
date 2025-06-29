@@ -312,10 +312,115 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// $GOR Balance Proxy - Bypass CORS restrictions
+app.get('/api/balance/:walletAddress', async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    
+    // Validate wallet address format
+    if (!walletAddress || walletAddress.length < 32) {
+      return res.status(400).json({ error: 'Invalid wallet address' });
+    }
+    
+    console.log(`💰 Fetching $GOR balance for: ${walletAddress}`);
+    
+    // RPC endpoints to try (in order of preference)
+    const rpcEndpoints = [
+      'https://gorchain.wstf.io',
+      'https://testnet.gorchain.wstf.io', 
+      'https://api.devnet.solana.com'
+    ];
+    
+    let balance = null;
+    let endpoint = null;
+    
+    for (const rpc of rpcEndpoints) {
+      try {
+        console.log(`🔍 Trying RPC: ${rpc}`);
+        
+        const response = await fetch(rpc, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Gorbagana-Trash-Tac-Toe-Backend/1.0.0'
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getBalance',
+            params: [walletAddress]
+          }),
+          timeout: 8000 // 8 second timeout
+        });
+        
+        if (!response.ok) {
+          console.log(`❌ ${rpc}: HTTP ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          console.log(`❌ ${rpc}: RPC Error - ${data.error.message}`);
+          continue;
+        }
+        
+        if (data.result !== undefined) {
+          balance = data.result.value !== undefined ? data.result.value : data.result;
+          endpoint = rpc;
+          console.log(`✅ Balance fetched from ${rpc}: ${balance} lamports`);
+          break;
+        }
+        
+      } catch (error) {
+        console.log(`❌ ${rpc}: ${error.message}`);
+        continue;
+      }
+    }
+    
+    if (balance === null) {
+      // If all RPCs fail, return a demo balance for development
+      console.log('⚠️ All RPC endpoints failed - using demo balance');
+      return res.json({ 
+        balance: 999960000, // 0.99996 SOL in lamports
+        lamports: 999960000,
+        gor: 0.99996,
+        endpoint: 'demo',
+        demo: true
+      });
+    }
+    
+    // Convert lamports to GOR (1 GOR = 1e9 lamports)
+    const gorBalance = balance !== null ? balance / 1000000000 : 0;
+    
+    console.log(`💰 Balance result: ${balance} lamports = ${gorBalance.toFixed(6)} $GOR`);
+    
+    res.json({
+      balance: balance,
+      lamports: balance, 
+      gor: gorBalance,
+      endpoint: endpoint,
+      demo: false
+    });
+    
+  } catch (error) {
+    console.error('Error fetching balance:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch balance',
+      balance: 999960000, // Fallback demo balance
+      lamports: 999960000,
+      gor: 0.99996,
+      endpoint: 'fallback',
+      demo: true
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`🚀 Gorbagana Trash Tac Toe server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/health`);
+  console.log(`💰 Balance proxy: http://localhost:${PORT}/api/balance/:walletAddress`);
   console.log(`💾 File-based database initialized`);
   console.log(`📊 Server stats: http://localhost:${PORT}/api/stats`);
   
