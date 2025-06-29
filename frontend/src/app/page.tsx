@@ -44,6 +44,7 @@ export default function Home() {
   const [gameId, setGameId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [wagerAmount, setWagerAmount] = useState<number>(0);
+  const [wagerInput, setWagerInput] = useState<string>("0");
   const [isPublicGame, setIsPublicGame] = useState(false);
   const [publicGames, setPublicGames] = useState<Game[]>([]);
   const [showPublicLobby, setShowPublicLobby] = useState(false);
@@ -393,8 +394,11 @@ export default function Home() {
       return;
     }
 
-    if (wagerAmount > gorBalance) {
-      toast.error(`Insufficient $GOR balance! Need ${wagerAmount.toFixed(5)} but only have ${gorBalance.toFixed(5)}`);
+    // Convert string input to number and validate
+    const wagerValue = parseFloat(wagerInput) || 0;
+    
+    if (wagerValue > gorBalance) {
+      toast.error(`Insufficient $GOR balance! Need ${wagerValue.toFixed(5)} but only have ${gorBalance.toFixed(5)}`);
       return;
     }
 
@@ -403,10 +407,10 @@ export default function Home() {
     try {
       // Validate wager amount if wager > 0 - PURE SIMULATION
       let escrowData = null;
-      if (wagerAmount > 0) {
+      if (wagerValue > 0) {
         console.log("🔍 Starting escrow validation - NO TRANSACTIONS");
         toast("Validating wager amount...");
-        escrowData = await createEscrowAccount(wagerAmount);
+        escrowData = await createEscrowAccount(wagerValue);
         console.log("✅ Escrow validation complete - NO TRANSACTIONS CREATED");
       }
 
@@ -419,7 +423,7 @@ export default function Home() {
         currentTurn: 1,
         status: "waiting",
         createdAt: Date.now(),
-        wager: wagerAmount,
+        wager: wagerValue,
         isPublic: isPublicGame,
         creatorName: wallet.publicKey.toString().slice(0, 4) + "..." + wallet.publicKey.toString().slice(-4),
         escrowAccount: escrowData?.escrowAccount,
@@ -435,7 +439,7 @@ export default function Home() {
       setLoading(false);
       
       if (isPublicGame) {
-        toast.success(`🗑️ Public game created with ${wagerAmount.toFixed(5)} $GOR wager!`);
+        toast.success(`🗑️ Public game created with ${wagerValue.toFixed(5)} $GOR wager!`);
       } else {
         toast.success("🗑️ Game created! Share the Game ID with a friend!");
       }
@@ -892,11 +896,15 @@ export default function Home() {
                         Set Wager Amount ($GOR)
                       </label>
                       <input
-                        type="number"
-                        min="0"
-                        max={gorBalance}
-                        value={wagerAmount || ""}
-                        onChange={(e) => setWagerAmount(Number(e.target.value) || 0)}
+                        type="text"
+                        value={wagerInput}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Only allow numbers and decimal point
+                          if (value === "" || /^[0-9]*\.?[0-9]*$/.test(value)) {
+                            setWagerInput(value);
+                          }
+                        }}
                         className="w-full px-4 py-3 bg-gray-900/50 border border-green-500/30 rounded-xl text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm"
                         placeholder="0.001"
                       />
@@ -1145,6 +1153,7 @@ export default function Home() {
                           setGame(null);
                           setGameId("");
                           setWagerAmount(0);
+                          setWagerInput("0");
                           setIsPublicGame(false);
                         }}
                         className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-purple-900/50 transition-all duration-300 transform hover:scale-105"

@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const ProductionDatabase = require('./database');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // Initialize database
 const db = new ProductionDatabase();

@@ -9,23 +9,41 @@ import { toast } from 'react-hot-toast';
 
 // Gorbagana Testnet Configuration
 
-// RPC Endpoint configuration - GORCHAIN OFFICIAL ENDPOINT
-// Using the official Gorchain RPC endpoint from documentation
+// RPC Endpoint configuration - UPDATED WITH WORKING ENDPOINTS
+// Primary: Try alternative Gorbagana endpoints, fallback to Solana devnet
 const RPC_ENDPOINTS = [
-  'https://gorchain.wstf.io', // PRIMARY: Official Gorchain RPC from documentation
-  'https://rpc.gorbagana.wtf', // FALLBACK: Alternative Gorbagana RPC
-  // NO SOLANA DEVNET FALLBACKS - We want GOR chain only!
+  'https://rpc.gorbagana.wtf', // PRIMARY: Alternative Gorbagana RPC (from your previous logs)
+  'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing
+  'https://api.testnet.solana.com', // ALTERNATIVE: Solana testnet
 ];
 
-// Test RPC endpoint connectivity with more lenient approach for Gorbagana
+// Test RPC endpoint connectivity with better error handling
 async function testRPCEndpoint(endpoint: string): Promise<boolean> {
   try {
-    // For Gorbagana endpoints, use a simpler test that's more likely to succeed
-    if (endpoint.includes('gorbagana') || endpoint.includes('gorchain')) {
-      console.log(`🎯 Forcing Gorbagana endpoint: ${endpoint} (bypassing health check)`);
-      return true; // Force use of Gorbagana endpoints
+    console.log(`🔍 Testing RPC endpoint: ${endpoint}`);
+    
+    // For Gorbagana endpoints, try a simple connectivity test first
+    if (endpoint.includes('gorbagana')) {
+      console.log(`🎯 Testing Gorbagana endpoint: ${endpoint}`);
+      
+      // Try a simple HTTP request first to check DNS resolution
+      const testResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getHealth',
+          params: []
+        }),
+        signal: AbortSignal.timeout(8000) // 8 second timeout for Gorbagana
+      });
+      
+      console.log(`✅ Gorbagana endpoint ${endpoint} is reachable`);
+      return true;
     }
     
+    // For Solana endpoints, use standard health check
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -38,14 +56,27 @@ async function testRPCEndpoint(endpoint: string): Promise<boolean> {
       signal: AbortSignal.timeout(5000) // 5 second timeout
     });
     
-    return response.ok;
-  } catch (error) {
-    console.warn(`RPC endpoint ${endpoint} failed:`, error);
-    // For Gorbagana endpoints, still try to use them even if health check fails
-    if (endpoint.includes('gorbagana') || endpoint.includes('gorchain')) {
-      console.log(`🔄 Gorbagana endpoint health check failed, but will still attempt to use: ${endpoint}`);
+    const isWorking = response.ok;
+    console.log(`${isWorking ? '✅' : '❌'} ${endpoint}: ${response.status}`);
+    return isWorking;
+    
+  } catch (error: any) {
+    console.warn(`❌ RPC endpoint ${endpoint} failed:`, error.message);
+    
+    // Handle specific DNS resolution errors
+    if (error.message.includes('ERR_NAME_NOT_RESOLVED') || 
+        error.message.includes('Failed to fetch') ||
+        error.name === 'TypeError') {
+      console.error(`🚫 DNS Resolution failed for ${endpoint} - domain not found`);
+      return false;
+    }
+    
+    // For Gorbagana endpoints, be more lenient with timeouts
+    if (endpoint.includes('gorbagana') && error.name === 'AbortError') {
+      console.log(`⏰ Gorbagana endpoint ${endpoint} timed out, but will still try to use it`);
       return true;
     }
+    
     return false;
   }
 }
@@ -60,7 +91,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setIsTestingRPC(true);
       
       for (const endpoint of RPC_ENDPOINTS) {
-        console.log(`🔍 Testing RPC endpoint: ${endpoint}`);
         const isWorking = await testRPCEndpoint(endpoint);
         
         if (isWorking) {
@@ -77,12 +107,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // No endpoints working, force primary Gorchain endpoint anyway
-      console.error('❌ All Gorchain RPC health checks failed, but forcing primary endpoint');
-      setWorkingEndpoint('https://gorchain.wstf.io');
-      toast('🔄 Using primary Gorbagana RPC - network ready!', {
-        duration: 4000,
-        icon: '🎯'
+      // No endpoints working, use Solana devnet as reliable fallback
+      console.error('❌ All RPC endpoints failed, falling back to Solana devnet');
+      setWorkingEndpoint('https://api.devnet.solana.com');
+      toast('⚠️ Using Solana Devnet - Gorbagana network unavailable', {
+        duration: 6000,
+        icon: '🔄'
       });
       setIsTestingRPC(false);
     }
@@ -109,7 +139,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       endpoint={workingEndpoint}
       config={{
         commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 10000, // Reduced to 10 seconds
+        confirmTransactionInitialTimeout: 60000, // Increased to 60 seconds
         wsEndpoint: undefined, // Disable WebSocket to prevent connection issues
         disableRetryOnRateLimit: false,
         httpHeaders: {

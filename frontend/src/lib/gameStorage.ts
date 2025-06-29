@@ -39,7 +39,7 @@ export interface SharedGame {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
   (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
     ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'  // Production backend URL on Render
-    : 'http://localhost:3001');
+    : 'http://localhost:3002');
 
 class GameStorage {
   private readonly STORAGE_PREFIX = 'gorbagana_game_'
@@ -77,11 +77,14 @@ class GameStorage {
       
       this.isBackendAvailable = response.ok
       
-      localStorage.setItem(this.CONNECTION_STATUS_KEY, JSON.stringify({
-        available: this.isBackendAvailable,
-        lastChecked: Date.now(),
-        url: API_BASE_URL
-      }))
+      // Only use localStorage in browser environment
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(this.CONNECTION_STATUS_KEY, JSON.stringify({
+          available: this.isBackendAvailable,
+          lastChecked: Date.now(),
+          url: API_BASE_URL
+        }))
+      }
       
       if (this.isBackendAvailable) {
         console.log('✅ Backend API connected - cross-device games enabled')
@@ -342,13 +345,15 @@ class GameStorage {
   // Local storage methods (fallback)
   private saveGameLocally(game: SharedGame): boolean {
     try {
-      const gameData = {
-        ...game,
-        updatedAt: Date.now()
+      // Only save locally in browser environment
+      if (typeof window === 'undefined') return false
+      
+      localStorage.setItem(`${this.STORAGE_PREFIX}${game.id}`, JSON.stringify(game))
+      
+      if (game.isPublic) {
+        this.addToSharedIndex(game.id)
       }
       
-      localStorage.setItem(`${this.STORAGE_PREFIX}${game.id}`, JSON.stringify(gameData))
-      this.addToSharedIndex(game.id)
       return true
     } catch (error) {
       console.error('Failed to save game locally:', error)
@@ -358,11 +363,11 @@ class GameStorage {
   
   private loadGameLocally(gameId: string): SharedGame | null {
     try {
+      // Only load locally in browser environment
+      if (typeof window === 'undefined') return null
+      
       const data = localStorage.getItem(`${this.STORAGE_PREFIX}${gameId}`)
-      if (data) {
-        return JSON.parse(data)
-      }
-      return null
+      return data ? JSON.parse(data) : null
     } catch (error) {
       console.error('Failed to load game locally:', error)
       return null
@@ -371,28 +376,22 @@ class GameStorage {
   
   private getPublicGamesLocally(): SharedGame[] {
     try {
+      // Only access localStorage in browser environment
+      if (typeof window === 'undefined') return []
+      
+      const shared = JSON.parse(localStorage.getItem(this.SHARED_PREFIX) || '[]')
       const games: SharedGame[] = []
       
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key?.startsWith(this.STORAGE_PREFIX)) {
-          const data = localStorage.getItem(key)
-          if (data) {
-            try {
-              const game = JSON.parse(data)
-              if (game.isPublic && game.status === 'waiting') {
-                games.push(game)
-              }
-            } catch {
-              // Skip invalid data
-            }
-          }
+      for (const gameId of shared) {
+        const game = this.loadGameLocally(gameId)
+        if (game && game.isPublic && game.status === 'waiting') {
+          games.push(game)
         }
       }
       
-      return games.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20)
+      return games.sort((a, b) => b.createdAt - a.createdAt)
     } catch (error) {
-      console.error('Failed to load public games locally:', error)
+      console.error('Failed to get public games locally:', error)
       return []
     }
   }
@@ -430,6 +429,9 @@ class GameStorage {
   // Clean up old games (older than 24 hours)
   cleanupOldGames(): void {
     try {
+      // Only run cleanup in browser environment
+      if (typeof window === 'undefined') return
+      
       const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000)
       const keysToRemove: string[] = []
       
@@ -464,9 +466,12 @@ class GameStorage {
   // Get backend connection status
   getConnectionStatus(): { available: boolean; lastChecked: number; url?: string } {
     try {
-      const status = localStorage.getItem(this.CONNECTION_STATUS_KEY)
-      if (status) {
-        return JSON.parse(status)
+      // Only access localStorage in browser environment
+      if (typeof window !== 'undefined') {
+        const status = localStorage.getItem(this.CONNECTION_STATUS_KEY)
+        if (status) {
+          return JSON.parse(status)
+        }
       }
     } catch (error) {
       console.error('Failed to get connection status:', error)
@@ -572,6 +577,9 @@ class GameStorage {
 
   private addToSharedIndex(gameId: string): void {
     try {
+      // Only access localStorage in browser environment
+      if (typeof window === 'undefined') return
+      
       const shared = JSON.parse(localStorage.getItem(this.SHARED_PREFIX) || '[]')
       if (!shared.includes(gameId)) {
         shared.push(gameId)
@@ -584,6 +592,9 @@ class GameStorage {
 
   private removeFromSharedIndex(gameId: string): void {
     try {
+      // Only access localStorage in browser environment
+      if (typeof window === 'undefined') return
+      
       const shared = JSON.parse(localStorage.getItem(this.SHARED_PREFIX) || '[]')
       const filtered = shared.filter((id: string) => id !== gameId)
       localStorage.setItem(this.SHARED_PREFIX, JSON.stringify(filtered))
