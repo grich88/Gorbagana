@@ -8,7 +8,7 @@ const recipientAddress = new web3.PublicKey('RECEIVERADDRESS');
 const connection = new web3.Connection('https://gorchain.wstf.io', {
   commitment: 'confirmed',
   disableRetryOnRateLimit: false,
-  wsEndpoint: '', // Explicitly disable WebSocket (CRITICAL for Gorbagana)
+  wsEndpoint: null, // COMPLETELY disable WebSocket (CRITICAL for Gorbagana)
   httpHeaders: { 'User-Agent': 'gorbagana-script' },
 });
 

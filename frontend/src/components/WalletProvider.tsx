@@ -109,7 +109,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
           const testConnection = new Connection(endpoint, {
             commitment: 'confirmed',
-            wsEndpoint: '', // Disable WebSocket for testing
+            wsEndpoint: null, // COMPLETELY disable WebSocket for testing
             httpHeaders: { 'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0' },
           });
           
@@ -152,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       config={{
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 60000,
-        wsEndpoint: '',
+        wsEndpoint: null,
         disableRetryOnRateLimit: false,
         httpHeaders: {
           'Content-Type': 'application/json',
@@ -160,12 +160,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
         },
         fetch: (url, options) => {
-          return fetch(url, {
+          const httpsUrl = url.toString()
+            .replace('ws://', 'https://')
+            .replace('wss://', 'https://');
+          
+          console.log(`🔒 HTTPS-ONLY: ${httpsUrl}`);
+          
+          return fetch(httpsUrl, {
             ...options,
             headers: {
               ...options?.headers,
               'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
               'Content-Type': 'application/json',
+              'Connection': 'close',
             },
           });
         }
