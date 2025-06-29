@@ -461,6 +461,7 @@ export default function SimpleGame() {
     setLoading(true);
     
     try {
+      const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
       let escrowData = null;
       
       // Create escrow deposit if wager > 0
@@ -470,8 +471,6 @@ export default function SimpleGame() {
         toast.dismiss();
         console.log('✅ Escrow deposit created:', escrowData);
       }
-
-      const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
       const newGame: Game = {
         id: newGameId,
         playerX: wallet.publicKey.toString(),
@@ -648,15 +647,77 @@ export default function SimpleGame() {
     }
   };
 
-  // Get cell content with proper styling
+  // Get cell content with enhanced styling and animations
   const getCellContent = (position: number) => {
-    if (game?.board[position] === 1) {
-      return <span className="game-cell x">🗑️</span>;
+    const value = game?.board[position] || 0;
+    if (value === 1) {
+      return (
+        <span className="game-icon trash-icon animate-bounce-in">
+          🗑️
+          <span className="icon-label">TRASH</span>
+        </span>
+      );
     }
-    if (game?.board[position] === 2) {
-      return <span className="game-cell o">♻️</span>;
+    if (value === 2) {
+      return (
+        <span className="game-icon recycle-icon animate-bounce-in">
+          ♻️
+          <span className="icon-label">RECYCLE</span>
+        </span>
+      );
     }
-    return "";
+    return (
+      <span className="empty-cell-hint">
+        <span className="plus-icon">+</span>
+      </span>
+    );
+  };
+
+  // Check for winning combination highlighting
+  const getWinningCells = () => {
+    if (!game || game.status !== 'finished' || !game.winner) return [];
+    
+    const winningCombinations = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6],             // Diagonals
+    ];
+    
+    for (const combination of winningCombinations) {
+      if (combination.every(pos => game.board[pos] === game.winner)) {
+        return combination;
+      }
+    }
+    return [];
+  };
+
+  const winningCells = getWinningCells();
+
+  // Enhanced cell styling with winning animation
+  const getCellClassName = (position: number) => {
+    const value = game?.board[position] || 0;
+    const isWinning = winningCells.includes(position);
+    const canPlay = game?.status === "playing" && value === 0;
+    
+    let className = "game-cell";
+    
+    if (value === 1) {
+      className += " filled trash-cell";
+    } else if (value === 2) {
+      className += " filled recycle-cell";  
+    } else {
+      className += " empty";
+    }
+    
+    if (isWinning) {
+      className += " winning-cell";
+    }
+    
+    if (canPlay) {
+      className += " playable";
+    }
+    
+    return className;
   };
 
   // Handle wager input with validation
@@ -822,18 +883,54 @@ export default function SimpleGame() {
                 </div>
               )}
 
-              <div className="game-board">
+              <div className="game-board enhanced">
                 {Array.from({ length: 9 }, (_, i) => (
                   <button
                     key={i}
                     onClick={() => makeMove(i)}
                     disabled={loading || game.status !== "playing" || game.board[i] !== 0}
-                    className="game-cell"
+                    className={getCellClassName(i)}
+                    style={{
+                      transform: winningCells.includes(i) ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'all 0.3s ease',
+                    }}
                   >
                     {getCellContent(i)}
                   </button>
                 ))}
               </div>
+              
+              {/* Game Progress Indicators */}
+              {game.status === "playing" && (
+                <div className="turn-indicator">
+                  <div className={`player-turn ${game.currentTurn === 1 ? 'active' : ''}`}>
+                    🗑️ Trash Cans {wallet.publicKey?.toString() === game.playerX ? '(You)' : ''}
+                  </div>
+                  <div className="vs-divider">VS</div>
+                  <div className={`player-turn ${game.currentTurn === 2 ? 'active' : ''}`}>
+                    ♻️ Recycling {wallet.publicKey?.toString() === game.playerO ? '(You)' : ''}
+                  </div>
+                </div>
+              )}
+              
+              {/* Winning Animation */}
+              {game.status === "finished" && game.winner && (
+                <div className="victory-banner">
+                  <div className="victory-content">
+                    <div className="victory-icon">
+                      {game.winner === 1 ? '🗑️' : '♻️'}
+                    </div>
+                    <div className="victory-text">
+                      {game.winner === 1 ? 'TRASH CANS WIN!' : 'RECYCLING WINS!'}
+                    </div>
+                    {game.wager > 0 && (
+                      <div className="victory-prize">
+                        💰 Prize: {(game.wager * 2).toFixed(6)} $GOR
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {game.status === "waiting" && (
                 <div style={{textAlign: 'center', margin: '1rem 0'}}>
