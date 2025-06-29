@@ -6,6 +6,7 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { useMemo, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import { Connection, PublicKey } from '@solana/web3.js';
 
 // Gorbagana Testnet Configuration
 
@@ -94,38 +95,37 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setIsTestingRPC(true);
       
       // For Gorbagana, always force the primary endpoint to avoid delays
-      if (RPC_ENDPOINTS[0].includes('gorbagana')) {
+      if (RPC_ENDPOINTS[0].includes('gorbagana') || RPC_ENDPOINTS[0].includes('gorchain')) {
         console.log(`🎯 Forcing Gorbagana endpoint: ${RPC_ENDPOINTS[0]} (bypassing health check)`);
         setWorkingEndpoint(RPC_ENDPOINTS[0]);
-        toast.success('🎒 Backpack + Gorbagana Testnet Ready - $GOR Network Active!');
+        toast.success('🎒 Backpack + Gorbagana Network Ready - $GOR Network Active!');
         setIsTestingRPC(false);
         return;
       }
       
+      // For other endpoints, test connectivity
       for (const endpoint of RPC_ENDPOINTS) {
-        const isWorking = await testRPCEndpoint(endpoint);
-        
-        if (isWorking) {
-          console.log(`✅ Using RPC endpoint: ${endpoint}`);
+        console.log(`🔍 Testing RPC endpoint: ${endpoint}`);
+        try {
+          const testConnection = new Connection(endpoint, {
+            commitment: 'confirmed',
+            wsEndpoint: '', // Disable WebSocket for testing
+            httpHeaders: { 'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0' },
+          });
+          
+          // Test with a simple balance check (using a known public key)
+          const testPubkey = new PublicKey('11111111111111111111111111111112'); // System program
+          await testConnection.getBalance(testPubkey);
+          
+          console.log(`✅ RPC endpoint working: ${endpoint}`);
           setWorkingEndpoint(endpoint);
-          
-          // Show Gorbagana network connection
-          if (endpoint.includes('gorbagana') || endpoint.includes('gorchain')) {
-            toast.success('🎒 Backpack + Gorbagana Testnet Ready - $GOR Network Active!');
-          }
-          
-          setIsTestingRPC(false);
-          return;
+          toast.success(`🌐 Connected to ${endpoint.includes('gorbagana') || endpoint.includes('gorchain') ? 'Gorbagana' : 'Solana'} Network!`);
+          break;
+        } catch (error) {
+          console.log(`❌ RPC endpoint failed: ${endpoint}`, error);
+          continue;
         }
       }
-      
-      // No endpoints working, use Solana devnet as reliable fallback
-      console.error('❌ All RPC endpoints failed, falling back to Solana devnet');
-      setWorkingEndpoint('https://api.devnet.solana.com');
-      toast('⚠️ Using Solana Devnet - Gorbagana network unavailable', {
-        duration: 6000,
-        icon: '🔄'
-      });
       setIsTestingRPC(false);
     }
 
@@ -151,38 +151,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       endpoint={workingEndpoint}
       config={{
         commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 90000, // Increased to 90 seconds for Gorbagana
-        wsEndpoint: undefined, // FORCE DISABLE WebSocket - use HTTPS only (dev suggestion)
+        confirmTransactionInitialTimeout: 60000,
+        wsEndpoint: '',
         disableRetryOnRateLimit: false,
         httpHeaders: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
         },
-        // FORCE HTTPS-ONLY CONNECTION (equivalent to --use-rpc flag)
-        // This prevents WebSocket connection attempts that are failing
         fetch: (url, options) => {
-          // Force all requests to use HTTPS and add timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second HTTP timeout
-          
-          // Ensure we're using HTTPS for all requests
-          const httpsUrl = url.toString().replace('ws://', 'https://').replace('wss://', 'https://');
-          
-          console.log(`🔗 HTTPS-only request to: ${httpsUrl}`);
-          
-          return fetch(httpsUrl, {
+          return fetch(url, {
             ...options,
-            signal: controller.signal,
-            method: options?.method || 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache',
               ...options?.headers,
+              'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
+              'Content-Type': 'application/json',
             },
-          }).finally(() => {
-            clearTimeout(timeoutId);
           });
         }
       }}
@@ -208,4 +192,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       </SolanaWalletProvider>
     </ConnectionProvider>
   );
-} 
+}
+
+/* 
+ * GORBAGANA TRANSACTION CONFIRMATION UTILITY (for future use)
+ * Based on the official Gorbagana script configuration
+ * 
+ * async function confirmGorbaganaTransaction(connection, signature) {
+ *   const POLL_INTERVAL = 2000; // Poll every 2 seconds
+ *   const MAX_POLL_ATTEMPTS = 30; // 60 seconds total
+ *   
+ *   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+ *     try {
+ *       const { value } = await connection.getSignatureStatuses([signature], { 
+ *         searchTransactionHistory: true 
+ *       });
+ *       const status = value[0];
+ *       if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
+ *         return status.err ? { status: 'Failed', error: status.err } : { status: 'Success' };
+ *       }
+ *     } catch (error) {
+ *       console.error(`Poll ${i + 1} error:`, error.message);
+ *     }
+ *     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+ *   }
+ *   throw new Error('Transaction confirmation timed out after 60 seconds.');
+ * }
+ * 
+ * // Get transaction details (Gorbagana compatible)
+ * const tx = await connection.getTransaction(signature, {
+ *   commitment: 'confirmed',
+ *   maxSupportedTransactionVersion: 0, // Gorbagana uses Solana v1.18.26
+ * });
+ */ 
