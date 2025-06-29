@@ -1,6 +1,7 @@
 const config = {
   plugins: {
-    tailwindcss: {},
+    // Temporarily disable TailwindCSS to fix build
+    // tailwindcss: {},
     autoprefixer: {},
   },
 };
