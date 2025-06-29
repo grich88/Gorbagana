@@ -123,6 +123,7 @@ export default function Home() {
         console.log("🔍 Checking Gorbagana network for $GOR tokens:", wallet.publicKey.toString());
         console.log("🌐 Using RPC:", connection.rpcEndpoint);
         console.log("💡 $GOR is NATIVE token on Gorbagana (like SOL on Solana)");
+        console.log("🔗 Official Gorbagana RPC: https://gorchain.wstf.io");
         
         // For now, set a default balance to avoid transaction triggers
         // In production, this would be replaced with proper balance fetching
@@ -1145,7 +1146,7 @@ export default function Home() {
                     - Keep token and docs the same
                 */}
                 <p>🌐 <span className="text-green-400">Network:</span> Gorbagana Testnet</p>
-                <p>🔗 <span className="text-green-400">RPC:</span> testnet.gorchain.wstf.io</p>
+                <p>🔗 <span className="text-green-400">RPC:</span> gorchain.wstf.io</p>
                 
                 <p>💰 <span className="text-green-400">Token:</span> $GOR (71Jvq4...ELvg)</p>
                 <p>📚 <span className="text-green-400">Docs:</span> <a href="https://gorbagana.com" className="text-green-300 underline">gorbagana.com</a></p>

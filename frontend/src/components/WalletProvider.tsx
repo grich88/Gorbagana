@@ -9,12 +9,13 @@ import { toast } from 'react-hot-toast';
 
 // Gorbagana Testnet Configuration
 
-// RPC Endpoint configuration - UPDATED WITH WORKING ENDPOINTS
-// Primary: Try alternative Gorbagana endpoints, fallback to Solana devnet
+// RPC Endpoint configuration - CORRECTED WITH OFFICIAL GORBAGANA ENDPOINTS
+// Based on documentation: NETWORK_CONFIGURATION.md, PRODUCTION_RELEASE.md, FINAL_INSTRUCTIONS.md
 const RPC_ENDPOINTS = [
-  'https://rpc.gorbagana.wtf', // PRIMARY: Alternative Gorbagana RPC (from your previous logs)
+  'https://gorchain.wstf.io', // PRIMARY: Official Gorbagana Mainnet RPC (from documentation)
+  'https://testnet.gorchain.wstf.io', // SECONDARY: Official Gorbagana Testnet RPC (if available)
   'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing
-  'https://api.testnet.solana.com', // ALTERNATIVE: Solana testnet
+  'https://api.mainnet-beta.solana.com', // ALTERNATIVE: Solana mainnet
 ];
 
 // Test RPC endpoint connectivity with better error handling
@@ -149,20 +150,35 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       config={{
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 90000, // Increased to 90 seconds for Gorbagana
-        wsEndpoint: undefined, // Completely disable WebSocket to prevent connection issues
+        wsEndpoint: undefined, // FORCE DISABLE WebSocket - use HTTPS only (dev suggestion)
         disableRetryOnRateLimit: false,
         httpHeaders: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
         },
-        // Additional connection options for better stability
+        // FORCE HTTPS-ONLY CONNECTION (equivalent to --use-rpc flag)
+        // This prevents WebSocket connection attempts that are failing
         fetch: (url, options) => {
-          // Add timeout to all HTTP requests
+          // Force all requests to use HTTPS and add timeout
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second HTTP timeout
           
-          return fetch(url, {
+          // Ensure we're using HTTPS for all requests
+          const httpsUrl = url.toString().replace('ws://', 'https://').replace('wss://', 'https://');
+          
+          console.log(`🔗 HTTPS-only request to: ${httpsUrl}`);
+          
+          return fetch(httpsUrl, {
             ...options,
             signal: controller.signal,
+            method: options?.method || 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache',
+              ...options?.headers,
+            },
           }).finally(() => {
             clearTimeout(timeoutId);
           });
