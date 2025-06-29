@@ -7,11 +7,9 @@ import { Trash2, Recycle, Plus, Users, Trophy, Eye, DollarSign } from 'lucide-re
 import { toast } from 'react-hot-toast';
 import { 
   PublicKey, 
-  Transaction, 
-  SystemProgram, 
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
-// SPL token imports removed - $GOR is native token
+// Removed Transaction and SystemProgram imports - no transactions needed for demo mode
 
 // Simplified game types
 type GameStatus = "waiting" | "playing" | "finished";
@@ -258,39 +256,37 @@ export default function Home() {
     }
   }, [wallet.connected, wallet.publicKey, game]);
 
-  // Simplified escrow validation for $GOR native token
+  // Demo escrow validation - no actual transactions
   const createEscrowAccount = async (wagerAmount: number) => {
-    if (!wallet.publicKey || !connection) {
+    if (!wallet.publicKey) {
       throw new Error("Wallet not connected");
     }
 
     if (wagerAmount <= 0) return null;
 
     try {
-      // $GOR native token escrow - simplified approach
+      // Demo mode: Just validate balance without any blockchain transactions
       toast("🔒 Validating $GOR balance for wager...");
       
-      // $GOR is native token - check native balance directly
-      const nativeBalance = await connection.getBalance(wallet.publicKey);
-      const userGorBalance = nativeBalance / LAMPORTS_PER_SOL;
+      // Use the already-fetched balance to avoid additional RPC calls
+      const userGorBalance = gorBalance;
+      const wagerLamports = Math.floor(wagerAmount * LAMPORTS_PER_SOL);
       
-      console.log(`💰 User $GOR balance: ${userGorBalance} (${nativeBalance} lamports)`);
-      console.log(`🎯 Wager amount: ${wagerAmount.toFixed(5)} $GOR`);
+      console.log(`💰 User $GOR balance: ${userGorBalance} (${Math.floor(userGorBalance * LAMPORTS_PER_SOL)} lamports)`);
+      console.log(`🎯 Wager amount: ${wagerAmount.toFixed(3)} $GOR`);
+      console.log(`💼 Escrow validation: ${wagerLamports} lamports (${wagerAmount.toFixed(3)} $GOR)`);
       
       if (userGorBalance < wagerAmount) {
-        throw new Error(`Insufficient $GOR balance. Have ${userGorBalance.toFixed(5)}, need ${wagerAmount.toFixed(5)}`);
+        throw new Error(`Insufficient $GOR balance. Have ${userGorBalance.toFixed(6)}, need ${wagerAmount.toFixed(6)}`);
       }
       
-      // Create a unique escrow identifier (simplified for demo)
+      // Create a unique escrow identifier (demo mode - no real escrow)
       const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       
-      console.log(`💼 Escrow validation successful: ${wagerAmount.toFixed(5)} $GOR`);
       console.log(`🔑 Escrow ID: ${escrowId}`);
 
-      // Skip transaction for now to avoid timeout issues
-      // In production, implement proper escrow smart contract
-      
-      toast.success(`✅ ${wagerAmount.toFixed(5)} $GOR wager validated! (Demo mode - no blockchain transaction)`);
+      // Demo mode: No actual blockchain transactions
+      toast.success(`✅ ${wagerAmount.toFixed(6)} $GOR wager validated! (Demo mode - no actual escrow created)`);
       
       return {
         escrowAccount: escrowId,
@@ -668,8 +664,8 @@ export default function Home() {
               Real blockchain gaming with $GOR token wagers on Gorbagana network.<br/>
               Powered by <a href="https://gorganus.com" className="text-green-400 underline">Gorganus</a> infrastructure.
             </p>
-            <div className="mb-8 text-sm text-green-400 bg-green-900/20 border border-green-500/30 rounded-lg px-4 py-2 max-w-lg mx-auto">
-              ⚡ Production Mode: Real $GOR tokens • Live escrow • Mainnet transactions
+            <div className="mb-8 text-sm text-yellow-400 bg-yellow-900/20 border border-yellow-500/30 rounded-lg px-4 py-2 max-w-lg mx-auto">
+              🎮 Demo Mode: Real $GOR balance detection • No actual escrow transactions • Safe testing
             </div>
             
             {/* Wallet Connection - Gorganus Style */}
@@ -1214,7 +1210,7 @@ export default function Home() {
                     <li>• <strong>Bounty:</strong> Build Multiplayer Mini-Games on Gorbagana Testnet</li>
                     <li>• <strong>Prize Pool:</strong> 5,100 USDC total rewards</li>
                     <li>• <strong>Deadline:</strong> July 03, 2025</li>
-                    <li>• <strong>Real Testnet:</strong> Uses actual Gorbagana blockchain with real transactions</li>
+                    <li>• <strong>Demo Mode:</strong> Real balance detection, no actual blockchain transactions</li>
                   </ul>
                 </div>
               </div>
