@@ -11,7 +11,7 @@
   CACHE_BUST_ID = "v5-ultra-aggressive-2025-01-29-1630"
   BUILD_TIMESTAMP = "1751204400000"
   FORCE_REBUILD = "true"
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
   NPM_FLAGS = "--no-cache"
   CACHE_BUST = "v5.1-gorchain-fix-2025-01-29-16-55"
   BUILD_ID = "ultra-final-v5.1"
