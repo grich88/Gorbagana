@@ -105,10 +105,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     // Give wallets time to initialize
     const timer = setTimeout(() => {
       // Check if there are conflicts and warn user
-      if (typeof window !== 'undefined' && window.ethereum) {
-        console.log('🔍 Multiple wallet extensions detected - Backpack preferred for Gorbagana');
+      if (typeof window !== 'undefined') {
+        const extensions = [];
+        if (window.ethereum) extensions.push('Ethereum-based wallet (MetaMask/etc)');
+        if (window.solana) extensions.push('Solana wallet');
+        if (window.solana?.isBackpack) extensions.push('Backpack (recommended)');
+        
+        console.log('🔍 Detected wallet extensions:', extensions);
+        
+        if (extensions.length > 1) {
+          console.warn('⚠️ Multiple wallet extensions detected - this may cause conflicts');
+          console.log('💡 For best experience with Gorbagana, disable other extensions and use only Backpack');
+        }
+        
         if (window.solana?.isBackpack) {
           console.log('✅ Backpack detected and ready for Gorbagana');
+        } else {
+          console.warn('⚠️ Backpack wallet not detected - please install Backpack for Gorbagana support');
         }
       }
     }, 2000);

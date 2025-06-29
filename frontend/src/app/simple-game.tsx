@@ -85,12 +85,28 @@ export default function SimpleGame() {
 
   // Create shared escrow account and deposit wager (real $GOR transaction)
   const createEscrowDeposit = async (wagerAmount: number, gameId: string, isCreator: boolean = true): Promise<{escrowAccount: string, txSignature: string}> => {
-    if (!wallet.publicKey || !wallet.signTransaction) {
-      throw new Error("Wallet not connected or doesn't support signing");
+    console.log(`\n=== Starting Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
+    console.log('🔍 Wallet state:', {
+      connected: wallet.connected,
+      publicKey: wallet.publicKey?.toString(),
+      signTransaction: !!wallet.signTransaction,
+      wallet: wallet.wallet?.adapter?.name
+    });
+
+    if (!wallet.connected) {
+      throw new Error("❌ Wallet is not connected. Please connect your Backpack wallet first.");
+    }
+
+    if (!wallet.publicKey) {
+      throw new Error("❌ Wallet public key not available. Please reconnect your wallet.");
+    }
+
+    if (!wallet.signTransaction) {
+      throw new Error("❌ Wallet doesn't support transaction signing. Use Backpack wallet.");
     }
 
     if (wagerAmount <= 0) {
-      throw new Error("Wager amount must be greater than 0");
+      throw new Error("❌ Wager amount must be greater than 0");
     }
 
     console.log(`\n=== Creating Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
@@ -153,9 +169,30 @@ export default function SimpleGame() {
 
       // Sign transaction with wallet
       console.log('✍️ Requesting wallet signature for escrow deposit...');
-      toast.loading('🔐 Please sign the transaction to deposit your wager...', { duration: 10000 });
+      console.log('🔍 Transaction details:', {
+        from: wallet.publicKey.toString(),
+        to: escrowPubkey.toString(),
+        lamports: wagerLamports,
+        wager: wagerAmount
+      });
       
-      const signedTransaction = await wallet.signTransaction(transaction);
+      toast.loading('🔐 Please sign the transaction to deposit your wager...', { duration: 15000 });
+      
+      let signedTransaction;
+      try {
+        signedTransaction = await wallet.signTransaction(transaction);
+        console.log('✅ Transaction signed successfully');
+      } catch (signError: any) {
+        console.error('❌ Transaction signing failed:', signError);
+        toast.dismiss();
+        if (signError.message?.includes('User rejected')) {
+          throw new Error("❌ Transaction was rejected by user");
+        } else if (signError.message?.includes('ethereum')) {
+          throw new Error("❌ Wallet conflict detected. Disable other wallet extensions and use only Backpack.");
+        } else {
+          throw new Error(`❌ Signing failed: ${signError.message}`);
+        }
+      }
 
       // Send transaction with retries
       let signature: string = '';
@@ -230,6 +267,20 @@ export default function SimpleGame() {
     }
     testBackend();
   }, []);
+
+  // Check for wallet extension conflicts
+  useEffect(() => {
+    if (wallet.connected && typeof window !== 'undefined') {
+      // Check for problematic wallet extensions
+      if (window.ethereum && !window.solana?.isBackpack) {
+        console.warn('⚠️ Ethereum wallet detected - this may interfere with Gorbagana transactions');
+        toast('⚠️ Multiple wallets detected. For best results, disable MetaMask and use only Backpack.', {
+          duration: 8000,
+          icon: '⚠️'
+        });
+      }
+    }
+  }, [wallet.connected]);
 
   // Real $GOR balance detection
   const fetchGorBalance = useCallback(async () => {
@@ -447,6 +498,8 @@ export default function SimpleGame() {
 
   // Create a new game (with real escrow deposit)
   const createGame = async () => {
+    console.log('🎮 Starting game creation...');
+    
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet first!");
       return;
@@ -458,24 +511,52 @@ export default function SimpleGame() {
     }
 
     const wagerAmount = parseFloat(wagerInput) || 0;
+    console.log(`💰 Wager amount: ${wagerAmount} $GOR`);
     
     if (wagerAmount > gorBalance) {
       toast.error(`Insufficient $GOR balance! You have ${gorBalance.toFixed(4)} $GOR`);
       return;
     }
 
+    // Check for wallet conflicts before starting
+    if (typeof window !== 'undefined' && window.ethereum && wagerAmount > 0) {
+      console.warn('⚠️ Ethereum wallet detected - potential conflict for escrow transactions');
+    }
+
     setLoading(true);
     
     try {
       const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
+      console.log(`🆔 Generated game ID: ${newGameId}`);
+      
       let escrowData = null;
       
       // Create escrow deposit if wager > 0
       if (wagerAmount > 0) {
-        toast.loading('🔐 Creating escrow deposit...', { duration: 5000 });
-        escrowData = await createEscrowDeposit(wagerAmount, newGameId, true); // Creator
-        toast.dismiss();
-        console.log('✅ Escrow deposit created:', escrowData);
+        console.log(`🔐 Creating escrow deposit for ${wagerAmount} $GOR...`);
+        toast.loading('🔐 Creating escrow deposit...', { duration: 8000 });
+        
+        try {
+          escrowData = await createEscrowDeposit(wagerAmount, newGameId, true); // Creator
+          toast.dismiss();
+          console.log('✅ Escrow deposit created successfully:', escrowData);
+        } catch (escrowError: any) {
+          toast.dismiss();
+          console.error('❌ Escrow creation failed:', escrowError);
+          setLoading(false);
+          
+          // Provide specific error messages
+          if (escrowError.message.includes('ethereum') || escrowError.message.includes('redefine')) {
+            toast.error('❌ Wallet conflict detected! Please disable other wallet extensions and refresh the page.');
+          } else if (escrowError.message.includes('rejected')) {
+            toast.error('❌ Transaction was cancelled by user');
+          } else {
+            toast.error(`❌ Escrow creation failed: ${escrowError.message}`);
+          }
+          return;
+        }
+      } else {
+        console.log('💳 Free game - no escrow needed');
       }
       const newGame: Game = {
         id: newGameId,
