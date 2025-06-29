@@ -109,7 +109,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
           const testConnection = new Connection(endpoint, {
             commitment: 'confirmed',
-            wsEndpoint: null, // COMPLETELY disable WebSocket for testing
+            wsEndpoint: undefined, // COMPLETELY disable WebSocket for testing
             httpHeaders: { 'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0' },
           });
           
@@ -152,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       config={{
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 60000,
-        wsEndpoint: null,
+        wsEndpoint: undefined, // GORBAGANA: COMPLETELY disable WebSocket
         disableRetryOnRateLimit: false,
         httpHeaders: {
           'Content-Type': 'application/json',
