@@ -43,7 +43,15 @@ interface Game {
 // Import the new cross-device game storage
 import { gameStorage, convertToSharedGame, convertFromSharedGame } from '../lib/gameStorage';
 
+// Import the simple game component
+import SimpleGame from './simple-game';
+
 export default function Home() {
+  // Temporarily use the simple game component for better visibility
+  return <SimpleGame />;
+}
+
+function ComplexHome() {
   const wallet = useWallet();
   const { connection } = useConnection();
   const [game, setGame] = useState<Game | null>(null);
