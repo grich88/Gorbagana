@@ -324,19 +324,20 @@ app.get('/api/balance/:walletAddress', async (req, res) => {
     
     console.log(`💰 Fetching $GOR balance for: ${walletAddress}`);
     
-    // RPC endpoints to try (in order of preference)
-    const rpcEndpoints = [
+    // Primary Gorbagana network endpoints (official)
+    const gorbaganaEndpoints = [
       'https://gorchain.wstf.io',
-      'https://testnet.gorchain.wstf.io', 
-      'https://api.devnet.solana.com'
+      'https://testnet.gorchain.wstf.io'
     ];
     
+    // Test Gorbagana network first (this is a $GOR token game)
+    let gorbaganaWorking = false;
     let balance = null;
     let endpoint = null;
     
-    for (const rpc of rpcEndpoints) {
+    for (const rpc of gorbaganaEndpoints) {
       try {
-        console.log(`🔍 Trying RPC: ${rpc}`);
+        console.log(`🎯 Testing Gorbagana RPC: ${rpc}`);
         
         const response = await fetch(rpc, {
           method: 'POST',
@@ -350,57 +351,65 @@ app.get('/api/balance/:walletAddress', async (req, res) => {
             method: 'getBalance',
             params: [walletAddress]
           }),
-          timeout: 8000 // 8 second timeout
+          signal: AbortSignal.timeout(10000) // 10 second timeout for Gorbagana
         });
         
         if (!response.ok) {
-          console.log(`❌ ${rpc}: HTTP ${response.status}`);
+          console.log(`❌ Gorbagana ${rpc}: HTTP ${response.status}`);
           continue;
         }
         
         const data = await response.json();
         
         if (data.error) {
-          console.log(`❌ ${rpc}: RPC Error - ${data.error.message}`);
+          console.log(`❌ Gorbagana ${rpc}: RPC Error - ${data.error.message}`);
           continue;
         }
         
         if (data.result !== undefined) {
           balance = data.result.value !== undefined ? data.result.value : data.result;
           endpoint = rpc;
-          console.log(`✅ Balance fetched from ${rpc}: ${balance} lamports`);
+          gorbaganaWorking = true;
+          console.log(`✅ Gorbagana balance fetched from ${rpc}: ${balance} lamports`);
           break;
         }
         
       } catch (error) {
-        console.log(`❌ ${rpc}: ${error.message}`);
+        console.log(`❌ Gorbagana ${rpc}: ${error.message}`);
         continue;
       }
     }
     
-    if (balance === null) {
-      // If all RPCs fail, return a demo balance for development
-      console.log('⚠️ All RPC endpoints failed - using demo balance');
-      return res.json({ 
-        balance: 999960000, // 0.99996 SOL in lamports
-        lamports: 999960000,
-        gor: 0.99996,
-        endpoint: 'demo',
-        demo: true
+    // If Gorbagana is working, return the real balance
+    if (gorbaganaWorking && balance !== null) {
+      const gorBalance = balance !== null ? balance / 1000000000 : 0;
+      
+      console.log(`💰 Real Gorbagana balance: ${balance} lamports = ${gorBalance.toFixed(6)} $GOR`);
+      
+      return res.json({
+        balance: balance,
+        lamports: balance, 
+        gor: gorBalance,
+        endpoint: endpoint,
+        demo: false,
+        network: 'Gorbagana',
+        status: 'connected'
       });
     }
     
-    // Convert lamports to GOR (1 GOR = 1e9 lamports)
-    const gorBalance = balance !== null ? balance / 1000000000 : 0;
+    // If Gorbagana is down, provide demo balance with clear messaging
+    console.log('⚠️ Gorbagana network unavailable - providing demo balance for development');
+    console.log('🎮 Game will use demo $GOR balance until Gorbagana network is restored');
     
-    console.log(`💰 Balance result: ${balance} lamports = ${gorBalance.toFixed(6)} $GOR`);
-    
-    res.json({
-      balance: balance,
-      lamports: balance, 
-      gor: gorBalance,
-      endpoint: endpoint,
-      demo: false
+    return res.json({ 
+      balance: 999960000, // 0.99996 GOR in lamports
+      lamports: 999960000,
+      gor: 0.99996,
+      endpoint: 'demo',
+      demo: true,
+      network: 'Gorbagana (Demo Mode)',
+      status: 'network_unavailable',
+      message: 'Gorbagana network temporarily unavailable - using demo balance'
     });
     
   } catch (error) {
@@ -411,7 +420,10 @@ app.get('/api/balance/:walletAddress', async (req, res) => {
       lamports: 999960000,
       gor: 0.99996,
       endpoint: 'fallback',
-      demo: true
+      demo: true,
+      network: 'Gorbagana (Error Fallback)',
+      status: 'error',
+      message: 'Balance service error - using demo balance'
     });
   }
 });

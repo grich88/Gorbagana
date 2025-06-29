@@ -93,12 +93,26 @@ export default function SimpleGame() {
       
       // Show warnings for demo/fallback balances
       if (data.demo) {
-        console.log('⚠️ Using demo balance - RPC endpoints unavailable');
-        toast('⚠️ Demo balance - RPC connection failed', { duration: 3000 });
-      }
-      
-      if (gorBalance === 0 && !data.demo) {
-        toast.error('⚠️ Zero $GOR balance - you need $GOR tokens to play!');
+        console.log('⚠️ Using demo balance - Gorbagana network unavailable');
+        if (data.status === 'network_unavailable') {
+          toast('🌐 Gorbagana network unavailable - using demo $GOR balance', { 
+            duration: 5000,
+            icon: '⚠️'
+          });
+        } else {
+          toast('⚠️ Demo balance - RPC connection failed', { duration: 3000 });
+        }
+      } else {
+        // Real Gorbagana balance detected
+        console.log(`✅ Connected to ${data.network} - real $GOR balance detected`);
+        if (data.network === 'Gorbagana') {
+          toast.success('🎯 Connected to Gorbagana network!', { duration: 3000 });
+        }
+        
+        // Warn about zero balance on real network
+        if (gorBalance === 0) {
+          toast.error('⚠️ Zero $GOR balance - you need $GOR tokens to play!');
+        }
       }
       
     } catch (error) {
