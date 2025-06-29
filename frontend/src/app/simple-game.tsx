@@ -44,7 +44,7 @@ export default function SimpleGame() {
   const wallet = useWallet();
   const [game, setGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string>("");
-  const [wagerInput, setWagerInput] = useState<string>("0.002");
+  const [wagerInput, setWagerInput] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [gorBalance, setGorBalance] = useState<number>(0);
   const [isConnected, setIsConnected] = useState(false);
@@ -108,10 +108,16 @@ export default function SimpleGame() {
       } else {
         // Player O deposits to existing escrow account from game data
         if (!game?.escrowAccount) {
-          throw new Error("No shared escrow account found for this game");
+          console.error('❌ Game state:', JSON.stringify(game, null, 2));
+          throw new Error("Cannot find shared escrow account - game creator must deposit first");
         }
-        escrowPubkey = new PublicKey(game.escrowAccount);
-        console.log('🔑 EXISTING Shared Escrow Account:', escrowPubkey.toBase58());
+        try {
+          escrowPubkey = new PublicKey(game.escrowAccount);
+          console.log('🔑 EXISTING Shared Escrow Account:', escrowPubkey.toBase58());
+        } catch (keyError) {
+          console.error('❌ Invalid escrow account key:', game.escrowAccount);
+          throw new Error("Invalid shared escrow account format");
+        }
         // Note: Player O doesn't have the escrow private key, only the creator does
         // Prize distribution will be handled by the creator's stored escrow account
       }
@@ -552,11 +558,12 @@ export default function SimpleGame() {
 
       let escrowData = null;
       
+      // Update local game state first for escrow account reference
+      setGame(existingGame);
+      
       // Create matching escrow deposit if wager > 0
       if (existingGame.wager > 0) {
         toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
-        // Update local game state first for escrow account reference
-        setGame(existingGame);
         escrowData = await createEscrowDeposit(existingGame.wager, gameId, false); // Player O
         toast.dismiss();
         console.log('✅ Matching escrow deposit created:', escrowData);
@@ -723,7 +730,7 @@ export default function SimpleGame() {
   // Handle wager input with validation
   const handleWagerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    // Allow empty string, numbers, and decimal points
+    // Allow empty string, numbers 0-9, and decimal point
     if (value === '' || /^[0-9]*\.?[0-9]*$/.test(value)) {
       setWagerInput(value);
     }
@@ -818,7 +825,7 @@ export default function SimpleGame() {
                   value={wagerInput}
                   onChange={handleWagerChange}
                   className="form-input"
-                  placeholder="0.002"
+                  placeholder="Enter wager amount (e.g. 0.002)"
                 />
                 <div style={{fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem'}}>
                   Balance: {gorBalance.toFixed(6)} $GOR
