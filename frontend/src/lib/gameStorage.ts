@@ -35,11 +35,25 @@ export interface SharedGame {
   txSignature?: string
 }
 
-// Backend API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' 
-    ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'  // Production backend URL on Render
-    : 'http://localhost:3002');
+// Backend API configuration - Browser-safe environment variable access
+const getApiBaseUrl = () => {
+  // Use Next.js environment variable if available (build time)
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // Browser-safe fallback
+  if (typeof window !== 'undefined') {
+    return window.location.hostname !== 'localhost' 
+      ? 'https://gorbagana-trash-tac-toe-backend.onrender.com'  // Production backend URL on Render
+      : 'http://localhost:3002';
+  }
+  
+  // Server-side fallback
+  return 'http://localhost:3002';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class GameStorage {
   private readonly STORAGE_PREFIX = 'gorbagana_game_'

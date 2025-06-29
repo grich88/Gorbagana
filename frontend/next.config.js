@@ -3,7 +3,25 @@ const nextConfig = {
   trailingSlash: true,
   images: {
     unoptimized: true
-  }
+  },
+  webpack: (config, { isServer }) => {
+    // Handle Node.js polyfills for browser
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        process: 'process/browser',
+        buffer: 'buffer',
+        crypto: 'crypto-browserify',
+        stream: 'stream-browserify',
+        util: 'util',
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    
+    return config;
+  },
 };
 
 export default nextConfig;
