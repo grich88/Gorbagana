@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast';
 
 // RPC Endpoint configuration - CORRECTED WITH OFFICIAL GORBAGANA ENDPOINTS
 // Based on documentation: NETWORK_CONFIGURATION.md, PRODUCTION_RELEASE.md, FINAL_INSTRUCTIONS.md
+// DEPLOYMENT UPDATE: Forcing fresh deployment to ensure correct RPC endpoints are used
 const RPC_ENDPOINTS = [
   'https://gorchain.wstf.io', // PRIMARY: Official Gorbagana Mainnet RPC (from documentation)
   'https://testnet.gorchain.wstf.io', // SECONDARY: Official Gorbagana Testnet RPC (if available)
