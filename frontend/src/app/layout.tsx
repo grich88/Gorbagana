@@ -4,6 +4,7 @@ import "./globals.css";
 import "@solana/wallet-adapter-react-ui/styles.css";
 import { WalletProvider } from "@/components/WalletProvider";
 import { Toaster } from "react-hot-toast";
+import ClientOnly from "@/components/ClientOnly";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,10 +31,12 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${robotoMono.variable} antialiased bg-gradient-to-br from-green-50 to-blue-50 dark:from-green-950 dark:to-blue-950 min-h-screen`}
       >
-        <WalletProvider>
-          {children}
-          <Toaster position="top-right" />
-        </WalletProvider>
+        <ClientOnly fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+          <WalletProvider>
+            {children}
+            <Toaster position="top-right" />
+          </WalletProvider>
+        </ClientOnly>
       </body>
     </html>
   );

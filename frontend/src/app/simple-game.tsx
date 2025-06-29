@@ -83,8 +83,8 @@ export default function SimpleGame() {
     throw new Error('Transaction confirmation timed out after 60 seconds.');
   };
 
-  // Create escrow account and deposit wager (real $GOR transaction)
-  const createEscrowDeposit = async (wagerAmount: number): Promise<{escrowAccount: string, txSignature: string}> => {
+  // Create shared escrow account and deposit wager (real $GOR transaction)
+  const createEscrowDeposit = async (wagerAmount: number, gameId: string, isCreator: boolean = true): Promise<{escrowAccount: string, txSignature: string}> => {
     if (!wallet.publicKey || !wallet.signTransaction) {
       throw new Error("Wallet not connected or doesn't support signing");
     }
@@ -96,11 +96,26 @@ export default function SimpleGame() {
     console.log(`\n=== Creating Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
 
     try {
-      // Create a new escrow account
-      const escrowKeypair = Keypair.generate();
-      const escrowPubkey = escrowKeypair.publicKey;
+      let escrowKeypair: Keypair;
+      let escrowPubkey: PublicKey;
       
-      console.log('🔑 Escrow Account:', escrowPubkey.toBase58());
+      if (isCreator) {
+        // Game creator generates the shared escrow account
+        escrowKeypair = Keypair.generate();
+        escrowPubkey = escrowKeypair.publicKey;
+        console.log('🔑 NEW Shared Escrow Account:', escrowPubkey.toBase58());
+        setEscrowAccount(escrowKeypair); // Store for prize distribution
+      } else {
+        // Player O deposits to existing escrow account from game data
+        if (!game?.escrowAccount) {
+          throw new Error("No shared escrow account found for this game");
+        }
+        escrowPubkey = new PublicKey(game.escrowAccount);
+        console.log('🔑 EXISTING Shared Escrow Account:', escrowPubkey.toBase58());
+        // Note: Player O doesn't have the escrow private key, only the creator does
+        // Prize distribution will be handled by the creator's stored escrow account
+      }
+      
       console.log('👤 Player:', wallet.publicKey.toBase58());
 
       // Check player balance
@@ -115,7 +130,7 @@ export default function SimpleGame() {
         throw new Error(`Insufficient $GOR balance. Have ${(playerBalance / LAMPORTS_PER_SOL).toFixed(6)}, need ${(minRequired / LAMPORTS_PER_SOL).toFixed(6)}`);
       }
 
-      // Create transaction to transfer wager to escrow account
+      // Create transaction to transfer wager to shared escrow account
       console.log('📝 Creating escrow deposit transaction...');
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       
@@ -170,14 +185,11 @@ export default function SimpleGame() {
       const actualDeposit = escrowBalance / LAMPORTS_PER_SOL;
       
       console.log(`✅ Escrow deposit confirmed!`);
-      console.log(`💰 Escrow Balance: ${actualDeposit.toFixed(6)} $GOR`);
+      console.log(`💰 Total Escrow Balance: ${actualDeposit.toFixed(6)} $GOR`);
       console.log(`🔗 Explorer: https://gorexplorer.net/lookup.html#tx/${signature}`);
 
       toast.dismiss();
-      toast.success(`🔒 ${actualDeposit.toFixed(6)} $GOR deposited to escrow!`);
-
-      // Store escrow keypair for later prize distribution
-      setEscrowAccount(escrowKeypair);
+      toast.success(`🔒 ${wagerAmount.toFixed(6)} $GOR deposited to shared escrow!`);
 
       return {
         escrowAccount: escrowPubkey.toBase58(),
@@ -276,12 +288,12 @@ export default function SimpleGame() {
     }
   }, [wallet.connected, wallet.publicKey]);
 
-  // Fetch balance when wallet connects
+  // Fetch balance when wallet connects - reduced frequency for performance
   useEffect(() => {
     if (wallet.connected && wallet.publicKey) {
       fetchGorBalance();
-      // Refresh balance every 30 seconds
-      const interval = setInterval(fetchGorBalance, 30000);
+      // Refresh balance every 60 seconds (reduced from 30s)
+      const interval = setInterval(fetchGorBalance, 60000);
       return () => clearInterval(interval);
     } else {
       setGorBalance(0);
@@ -327,7 +339,7 @@ export default function SimpleGame() {
     };
 
     setIsPolling(true);
-    const pollInterval = setInterval(pollGame, 3000); // Poll every 3 seconds
+    const pollInterval = setInterval(pollGame, 5000); // Reduced from 3s to 5s for performance
     
     return () => {
       clearInterval(pollInterval);
@@ -337,12 +349,12 @@ export default function SimpleGame() {
 
   // Handle prize distribution when game ends
   const handlePrizeDistribution = async (finishedGame: Game) => {
-    if (!escrowAccount || !wallet.publicKey || finishedGame.wager <= 0) {
+    if (!wallet.publicKey || finishedGame.wager <= 0) {
       return;
     }
 
     try {
-      console.log('🏆 Distributing prizes...');
+      console.log('🏆 Checking prize distribution...');
       
       const isPlayerX = wallet.publicKey.toString() === finishedGame.playerX;
       const isPlayerO = wallet.publicKey.toString() === finishedGame.playerO;
@@ -352,17 +364,36 @@ export default function SimpleGame() {
       }
 
       const isWinner = (finishedGame.winner === 1 && isPlayerX) || (finishedGame.winner === 2 && isPlayerO);
+      const isCreator = isPlayerX; // Only the game creator (Player X) has the escrow private key
       
-      if (isWinner) {
-        // Winner gets both deposits (2x wager)
+      if (isWinner && isCreator && escrowAccount) {
+        // Winner AND creator can distribute their own prize
+        console.log('🏆 You won! Distributing your prize...');
         const prizeAmount = finishedGame.wager * 2;
         await transferPrize(prizeAmount, wallet.publicKey);
         toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR!`);
-      } else if (finishedGame.winner === 0) {
-        // Tie - both players get their deposits back
-        await transferPrize(finishedGame.wager, wallet.publicKey);
+      } else if (!isWinner && isCreator && escrowAccount) {
+        // Creator lost, send prize to opponent
+        console.log('😢 You lost. Sending prize to winner...');
+        const winnerAddress = finishedGame.winner === 2 ? finishedGame.playerO : finishedGame.playerX;
+        if (winnerAddress) {
+          const prizeAmount = finishedGame.wager * 2;
+          await transferPrize(prizeAmount, new PublicKey(winnerAddress));
+          toast.error(`😢 You lost ${finishedGame.wager.toFixed(6)} $GOR. Better luck next time!`);
+        }
+      } else if (finishedGame.winner === 0 && isCreator && escrowAccount) {
+        // Tie - creator returns funds to both players
+        console.log('🤝 Tie game. Returning deposits to both players...');
+        await transferPrize(finishedGame.wager, wallet.publicKey); // Return to self
+        if (finishedGame.playerO) {
+          await transferPrize(finishedGame.wager, new PublicKey(finishedGame.playerO)); // Return to opponent
+        }
         toast.success(`🤝 Tie game - ${finishedGame.wager.toFixed(6)} $GOR returned!`);
-      } else {
+      } else if (isWinner && !isCreator) {
+        // Winner but not creator - wait for creator to send prize
+        toast.success(`🎉 You won! Waiting for prize transfer...`);
+      } else if (!isWinner && !isCreator) {
+        // Loser and not creator - just show result
         toast.error('😢 You lost this game. Better luck next time!');
       }
       
@@ -435,7 +466,7 @@ export default function SimpleGame() {
       // Create escrow deposit if wager > 0
       if (wagerAmount > 0) {
         toast.loading('🔐 Creating escrow deposit...', { duration: 5000 });
-        escrowData = await createEscrowDeposit(wagerAmount);
+        escrowData = await createEscrowDeposit(wagerAmount, newGameId, true); // Creator
         toast.dismiss();
         console.log('✅ Escrow deposit created:', escrowData);
       }
@@ -525,7 +556,9 @@ export default function SimpleGame() {
       // Create matching escrow deposit if wager > 0
       if (existingGame.wager > 0) {
         toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
-        escrowData = await createEscrowDeposit(existingGame.wager);
+        // Update local game state first for escrow account reference
+        setGame(existingGame);
+        escrowData = await createEscrowDeposit(existingGame.wager, gameId, false); // Player O
         toast.dismiss();
         console.log('✅ Matching escrow deposit created:', escrowData);
       }
