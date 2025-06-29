@@ -90,6 +90,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     async function findWorkingEndpoint() {
       setIsTestingRPC(true);
       
+      // For Gorbagana, always force the primary endpoint to avoid delays
+      if (RPC_ENDPOINTS[0].includes('gorbagana')) {
+        console.log(`🎯 Forcing Gorbagana endpoint: ${RPC_ENDPOINTS[0]} (bypassing health check)`);
+        setWorkingEndpoint(RPC_ENDPOINTS[0]);
+        toast.success('🎒 Backpack + Gorbagana Testnet Ready - $GOR Network Active!');
+        setIsTestingRPC(false);
+        return;
+      }
+      
       for (const endpoint of RPC_ENDPOINTS) {
         const isWorking = await testRPCEndpoint(endpoint);
         
@@ -139,11 +148,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       endpoint={workingEndpoint}
       config={{
         commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000, // Increased to 60 seconds
-        wsEndpoint: undefined, // Disable WebSocket to prevent connection issues
+        confirmTransactionInitialTimeout: 90000, // Increased to 90 seconds for Gorbagana
+        wsEndpoint: undefined, // Completely disable WebSocket to prevent connection issues
         disableRetryOnRateLimit: false,
         httpHeaders: {
           'Content-Type': 'application/json',
+        },
+        // Additional connection options for better stability
+        fetch: (url, options) => {
+          // Add timeout to all HTTP requests
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second HTTP timeout
+          
+          return fetch(url, {
+            ...options,
+            signal: controller.signal,
+          }).finally(() => {
+            clearTimeout(timeoutId);
+          });
         }
       }}
     >
