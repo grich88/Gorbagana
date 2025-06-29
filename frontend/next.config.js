@@ -14,7 +14,7 @@ const nextConfig = {
   },
   // FORCE DIFFERENT BUILD HASH TO BYPASS CACHE
   generateBuildId: async () => {
-    return 'gorchain-fix-' + Date.now()
+    return 'official-gorbagana-rpc-' + Date.now()
   },
   webpack: (config, { isServer }) => {
     // Handle Node.js polyfills for browser
@@ -36,4 +36,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

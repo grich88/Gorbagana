@@ -14,28 +14,24 @@ import { Connection, PublicKey } from '@solana/web3.js';
 // This version MUST use gorchain.wstf.io NOT rpc.gorbagana.wtf
 // DEPLOYMENT VERIFICATION: If you see rpc.gorbagana.wtf in console, cache is NOT cleared!
 
-// RPC Endpoint configuration - CORRECTED WITH OFFICIAL GORBAGANA ENDPOINTS
-// Based on documentation: NETWORK_CONFIGURATION.md, PRODUCTION_RELEASE.md, FINAL_INSTRUCTIONS.md
-// DEPLOYMENT UPDATE: Forcing fresh deployment to ensure correct RPC endpoints are used
-// FORCE DEPLOY v5: Ensuring production uses gorchain.wstf.io NOT rpc.gorbagana.wtf
-// CACHE BUST: 2025-01-29-16:30 - ULTRA AGGRESSIVE NETLIFY REBUILD
-// VERSION CHECK: v5.0-gorchain-fix-ultra-aggressive
+// RPC Endpoint configuration - UPDATED WITH OFFICIAL GORBAGANA ENDPOINTS
+// Based on official Gorbagana documentation: https://rpc.gorbagana.wtf/
+// CRITICAL FIX: Was using gorchain.wstf.io but official docs specify rpc.gorbagana.wtf
+// USER CORRECTION: Official RPC endpoint is https://rpc.gorbagana.wtf/ per documentation
 const RPC_ENDPOINTS = [
-  'https://gorchain.wstf.io', // PRIMARY: Official Gorbagana Mainnet RPC (from documentation) - v5.0
-  'https://testnet.gorchain.wstf.io', // SECONDARY: Official Gorbagana Testnet RPC (if available) - v5.0
-  'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing - v5.0
-  'https://api.mainnet-beta.solana.com', // ALTERNATIVE: Solana mainnet - v5.0
+  'https://rpc.gorbagana.wtf/', // PRIMARY: Official Gorbagana RPC (from official docs) - CORRECTED
+  'https://api.devnet.solana.com', // FALLBACK: Solana devnet for testing only if Gorbagana unavailable
 ];
 
-// CACHE VERIFICATION: Console should show gorchain.wstf.io NOT rpc.gorbagana.wtf
-const DEPLOYMENT_TIMESTAMP = '🔥 PRODUCTION-v5.4-2025-01-29-17:10:00 🔥';
-const CACHE_BUST_ID = 'PRODUCTION-READY-v5.4-' + Date.now();
-console.log('🔥🔥🔥 PRODUCTION v5.4 - RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
-console.log('✅✅✅ VERIFICATION: Should be https://gorchain.wstf.io NOT rpc.gorbagana.wtf');
+// CACHE VERIFICATION: Console should show rpc.gorbagana.wtf (the CORRECT endpoint)
+const DEPLOYMENT_TIMESTAMP = '🔥 PRODUCTION-v6.3-OFFICIAL-RPC-2025-01-29-18:00:00 🔥';
+const CACHE_BUST_ID = 'OFFICIAL-GORBAGANA-RPC-v6.3-' + Date.now();
+console.log('🔥🔥🔥 PRODUCTION v6.3 - OFFICIAL RPC ENDPOINTS LOADED:', RPC_ENDPOINTS[0]);
+console.log('✅✅✅ VERIFICATION: Using OFFICIAL https://rpc.gorbagana.wtf/ per documentation');
 console.log('⏰⏰⏰ DEPLOYMENT TIMESTAMP:', DEPLOYMENT_TIMESTAMP);
 console.log('🎯🎯🎯 CACHE BUST ID:', CACHE_BUST_ID);
-console.log('🚨🚨🚨 If you see old timestamp or rpc.gorbagana.wtf, CACHE STILL NOT CLEARED!');
-console.log('🔍🔍🔍 Expected RPC: https://gorchain.wstf.io (NOT https://rpc.gorbagana.wtf)');
+console.log('🚨🚨🚨 CORRECTED: Now using official RPC endpoint from Gorbagana docs');
+console.log('🔍🔍🔍 Official RPC: https://rpc.gorbagana.wtf/ (per user documentation)');
 
 // Test RPC endpoint connectivity with better error handling
 async function testRPCEndpoint(endpoint: string): Promise<boolean> {
@@ -137,130 +133,4 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       
       // For other endpoints, test connectivity
       for (const endpoint of RPC_ENDPOINTS) {
-        console.log(`🔍 Testing RPC endpoint: ${endpoint}`);
-        try {
-          const testConnection = new Connection(endpoint, {
-            commitment: 'confirmed',
-            wsEndpoint: undefined, // COMPLETELY disable WebSocket for testing
-            httpHeaders: { 'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0' },
-          });
-          
-          // Test with a simple balance check (using a known public key)
-          const testPubkey = new PublicKey('11111111111111111111111111111112'); // System program
-          await testConnection.getBalance(testPubkey);
-          
-          console.log(`✅ RPC endpoint working: ${endpoint}`);
-          setWorkingEndpoint(endpoint);
-          toast.success(`🌐 Connected to ${endpoint.includes('gorbagana') || endpoint.includes('gorchain') ? 'Gorbagana' : 'Solana'} Network!`);
-          break;
-        } catch (error) {
-          console.log(`❌ RPC endpoint failed: ${endpoint}`, error);
-          continue;
-        }
-      }
-      setIsTestingRPC(false);
-    }
-
-    findWorkingEndpoint();
-  }, []);
-
-  // Empty wallets array - Backpack auto-detects
-  const wallets = useMemo(() => [], []);
-
-  if (isTestingRPC) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-          <p className="text-white">🔍 Finding best network connection...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ConnectionProvider 
-      endpoint={workingEndpoint}
-      config={{
-        commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000,
-        wsEndpoint: undefined, // GORBAGANA: COMPLETELY disable WebSocket
-        disableRetryOnRateLimit: false,
-        httpHeaders: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
-        },
-        fetch: (url, options) => {
-          const httpsUrl = url.toString()
-            .replace('ws://', 'https://')
-            .replace('wss://', 'https://');
-          
-          console.log(`🔒 HTTPS-ONLY: ${httpsUrl}`);
-          
-          return fetch(httpsUrl, {
-            ...options,
-            headers: {
-              ...options?.headers,
-              'User-Agent': 'Gorbagana-Trash-Tac-Toe/1.0.0',
-              'Content-Type': 'application/json',
-              'Connection': 'close',
-            },
-          });
-        }
-      }}
-    >
-      <SolanaWalletProvider 
-        wallets={wallets} 
-        autoConnect={false}
-        onError={(error) => {
-          console.error('Wallet error:', error);
-          // Handle specific wallet connection errors
-          if (error.message.includes('User rejected')) {
-            toast.error('Wallet connection rejected by user');
-          } else if (error.message.includes('ethereum')) {
-            toast.error('Multiple wallet extensions detected - disable others except Backpack');
-          } else {
-            toast.error('Backpack connection failed: ' + error.message);
-          }
-        }}
-      >
-        <WalletModalProvider>
-          {children}
-        </WalletModalProvider>
-      </SolanaWalletProvider>
-    </ConnectionProvider>
-  );
-}
-
-/* 
- * GORBAGANA TRANSACTION CONFIRMATION UTILITY (for future use)
- * Based on the official Gorbagana script configuration
- * 
- * async function confirmGorbaganaTransaction(connection, signature) {
- *   const POLL_INTERVAL = 2000; // Poll every 2 seconds
- *   const MAX_POLL_ATTEMPTS = 30; // 60 seconds total
- *   
- *   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
- *     try {
- *       const { value } = await connection.getSignatureStatuses([signature], { 
- *         searchTransactionHistory: true 
- *       });
- *       const status = value[0];
- *       if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
- *         return status.err ? { status: 'Failed', error: status.err } : { status: 'Success' };
- *       }
- *     } catch (error) {
- *       console.error(`Poll ${i + 1} error:`, error.message);
- *     }
- *     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
- *   }
- *   throw new Error('Transaction confirmation timed out after 60 seconds.');
- * }
- * 
- * // Get transaction details (Gorbagana compatible)
- * const tx = await connection.getTransaction(signature, {
- *   commitment: 'confirmed',
- *   maxSupportedTransactionVersion: 0, // Gorbagana uses Solana v1.18.26
- * });
- */ 
+        console.log(`

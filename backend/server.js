@@ -324,10 +324,11 @@ app.get('/api/balance/:walletAddress', async (req, res) => {
     
     console.log(`💰 Fetching $GOR balance for: ${walletAddress}`);
     
-    // Primary Gorbagana network endpoints (official)
-    const gorbaganaEndpoints = [
-      'https://gorchain.wstf.io',
-      'https://testnet.gorchain.wstf.io'
+    // Gorbagana RPC endpoints - UPDATED WITH OFFICIAL ENDPOINT
+    // Based on official documentation: https://rpc.gorbagana.wtf/
+    // USER CORRECTION: Official docs specify rpc.gorbagana.wtf not gorchain.wstf.io
+    const rpcEndpoints = [
+      'https://rpc.gorbagana.wtf/', // PRIMARY: Official Gorbagana RPC per documentation
     ];
     
     // Test Gorbagana network first (this is a $GOR token game)
@@ -335,7 +336,7 @@ app.get('/api/balance/:walletAddress', async (req, res) => {
     let balance = null;
     let endpoint = null;
     
-    for (const rpc of gorbaganaEndpoints) {
+    for (const rpc of rpcEndpoints) {
       try {
         console.log(`🎯 Testing Gorbagana RPC: ${rpc}`);
         
