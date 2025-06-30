@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
 import { LAMPORTS_PER_SOL, PublicKey, Connection, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
-import { Hash, Clock, Plus } from 'lucide-react';
+import { Hash, Clock, Plus, Eye, Users, Trophy } from 'lucide-react';
 
 // Game types
 type GameStatus = "waiting" | "playing" | "finished" | "abandoned";
@@ -45,22 +45,22 @@ console.log('🔍 Testing backend connection:', API_BASE_URL + '/health');
 
 export default function SimpleGame() {
   const wallet = useWallet();
+  const { connection } = useConnection();
   const [game, setGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string>("");
-  const [wagerInput, setWagerInput] = useState<string>("");
+  const [wagerInput, setWagerInput] = useState<string>("0.001");
   const [loading, setLoading] = useState(false);
   const [gorBalance, setGorBalance] = useState<number>(0);
   const [isConnected, setIsConnected] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [escrowAccount, setEscrowAccount] = useState<Keypair | null>(null);
+  
+  // Public games functionality
+  const [showPublicLobby, setShowPublicLobby] = useState(false);
+  const [publicGames, setPublicGames] = useState<Game[]>([]);
 
-  // Create Gorbagana connection (matches user's script)
-  const connection = new Connection(GORBAGANA_RPC, {
-    commitment: 'confirmed',
-    disableRetryOnRateLimit: false,
-    wsEndpoint: '', // Explicitly disable WebSocket
-    httpHeaders: { 'User-Agent': 'gorbagana-trash-tac-toe' },
-  });
+  // Create Gorbagana connection (backup if useConnection doesn't work)
+  const gorbaganaConnection = new Connection('https://rpc.gorbagana.wtf/', 'confirmed');
 
   // Helper function to confirm transaction via polling (from user's script)
   const confirmTransaction = async (signature: string): Promise<{status: string, error?: any}> => {
@@ -362,7 +362,7 @@ export default function SimpleGame() {
     }
   }, [wallet.connected, wallet.publicKey, fetchGorBalance]);
 
-  // Polling for game updates
+  // Polling for game updates with improved sync detection
   useEffect(() => {
     if (!game || !isConnected) return;
 
@@ -380,7 +380,36 @@ export default function SimpleGame() {
         const updatedGame = data.game;
 
         if (updatedGame) {
+          // Check for significant state changes to notify user
+          const hasStatusChanged = updatedGame.status !== game.status;
+          const hasPlayerJoined = !game.playerO && updatedGame.playerO;
+          const hasMoveBeenMade = JSON.stringify(updatedGame.board) !== JSON.stringify(game.board);
+          
+          // Update game state
           setGame(updatedGame);
+
+          // Notify about important changes
+          if (hasPlayerJoined) {
+            toast.success('🎮 Opponent joined! Game is starting!');
+          } else if (hasStatusChanged) {
+            if (updatedGame.status === 'playing' && game.status === 'waiting') {
+              toast.success('🚀 Game has started!');
+            } else if (updatedGame.status === 'finished') {
+              if (updatedGame.winner === 1) {
+                toast.success('🗑️ Trash Cans win!');
+              } else if (updatedGame.winner === 2) {
+                toast.success('♻️ Recycling Bins win!');
+              } else {
+                toast('🤝 Game ended in a tie!');
+              }
+            }
+          } else if (hasMoveBeenMade && updatedGame.status === 'playing') {
+            const isMyTurn = (updatedGame.currentTurn === 1 && wallet.publicKey?.toString() === updatedGame.playerX) ||
+                           (updatedGame.currentTurn === 2 && wallet.publicKey?.toString() === updatedGame.playerO);
+            if (isMyTurn) {
+              toast('🎯 Your turn!');
+            }
+          }
 
           // Handle game completion
           if (updatedGame.status === 'finished' || updatedGame.status === 'abandoned') {
@@ -399,13 +428,13 @@ export default function SimpleGame() {
 
     pollGame(); // Initial poll
     setIsPolling(true);
-    const pollInterval = setInterval(pollGame, 5000); // Reduced from 3s to 5s for performance
+    const pollInterval = setInterval(pollGame, 3000); // Faster polling for better sync
     
     return () => {
       clearInterval(pollInterval);
       setIsPolling(false);
     };
-  }, [game, isConnected]);
+  }, [game, isConnected, wallet.publicKey]);
 
   // Handle prize distribution when game ends
   const handlePrizeDistribution = async (finishedGame: Game) => {
@@ -588,7 +617,7 @@ export default function SimpleGame() {
     }
   };
 
-  // Create a new game (with real escrow deposit)
+  // Create a new game (with real escrow deposit and public option)
   const createGame = async () => {
     console.log('🎮 Starting game creation...');
     
@@ -650,6 +679,7 @@ export default function SimpleGame() {
       } else {
         console.log('💳 Free game - no escrow needed');
       }
+      
       const newGame: Game = {
         id: newGameId,
         playerX: wallet.publicKey.toString(),
@@ -659,8 +689,8 @@ export default function SimpleGame() {
         status: "waiting",
         createdAt: Date.now(),
         wager: wagerAmount,
-        isPublic: true,
-        creatorName: "Player 1",
+        isPublic: true, // Always create as public for now (can be made configurable)
+        creatorName: `Player ${wallet.publicKey.toString().slice(0, 4)}...${wallet.publicKey.toString().slice(-4)}`,
         escrowAccount: escrowData?.escrowAccount,
         txSignature: escrowData?.txSignature,
         playerXDeposit: escrowData?.txSignature
@@ -670,7 +700,8 @@ export default function SimpleGame() {
         gameId: newGame.id,
         wager: newGame.wager,
         escrowAccount: newGame.escrowAccount,
-        hasEscrowAccount: !!newGame.escrowAccount
+        hasEscrowAccount: !!newGame.escrowAccount,
+        isPublic: newGame.isPublic
       });
 
       // Save to backend
@@ -690,9 +721,9 @@ export default function SimpleGame() {
       setLoading(false);
       
       if (wagerAmount > 0) {
-        toast.success(`🔒 Game created with ${wagerAmount.toFixed(6)} $GOR wager! Share ID: ${newGameId}`);
+        toast.success(`🔒 Public game created with ${wagerAmount.toFixed(6)} $GOR wager! Share ID: ${newGameId}`);
       } else {
-        toast.success(`🗑️ Free game created! Share ID: ${newGameId}`);
+        toast.success(`🗑️ Free public game created! Share ID: ${newGameId}`);
       }
       
       // Refresh balance after transaction
@@ -979,10 +1010,66 @@ export default function SimpleGame() {
     }
   };
 
-  // Manual abandon game function
+  // Load public games from backend
+  const loadPublicGames = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/games`);
+      if (response.ok) {
+        const data = await response.json();
+        setPublicGames(data.games || []);
+        console.log(`📋 Loaded ${data.games?.length || 0} public games`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load public games:', error);
+    }
+  };
+
+  // Public games polling
+  useEffect(() => {
+    if (showPublicLobby) {
+      loadPublicGames();
+      const interval = setInterval(loadPublicGames, 10000); // Refresh every 10 seconds
+      return () => clearInterval(interval);
+    }
+  }, [showPublicLobby]);
+
+  // Join public game
+  const joinPublicGame = async (publicGame: Game) => {
+    if (!wallet.connected || !wallet.publicKey) {
+      toast.error("Please connect your wallet first!");
+      return;
+    }
+
+    if (publicGame.wager > gorBalance) {
+      toast.error(`Insufficient $GOR balance! Need ${publicGame.wager.toFixed(6)} $GOR`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      setGameId(publicGame.id);
+      await joinGame();
+      setShowPublicLobby(false);
+    } catch (error) {
+      console.error('❌ Failed to join public game:', error);
+      toast.error("Failed to join public game: " + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enhanced abandon game function - available for both players
   const abandonGame = async () => {
     if (!wallet.publicKey || !game) {
       toast.error("Cannot abandon game - wallet not connected or no active game!");
+      return;
+    }
+
+    const isPlayerX = wallet.publicKey.toString() === game.playerX;
+    const isPlayerO = wallet.publicKey.toString() === game.playerO;
+    
+    if (!isPlayerX && !isPlayerO) {
+      toast.error("You are not a player in this game!");
       return;
     }
 
@@ -1066,281 +1153,356 @@ export default function SimpleGame() {
 
       <div className="wallet-section">
         {!wallet.connected ? (
-          <div>
-            <WalletMultiButton />
-            <p style={{marginTop: '1rem', color: '#9ca3af', fontSize: '0.875rem'}}>
-              Connect your Backpack wallet to play with $GOR tokens
-            </p>
+          <div className="card">
+            <div className="card-header">Connect Wallet</div>
+            <p style={{textAlign: 'center', margin: '1rem 0'}}>Please connect your Backpack wallet to play</p>
+            <div style={{display: 'flex', justifyContent: 'center'}}>
+              <WalletMultiButton />
+            </div>
           </div>
         ) : (
-          <div className="wallet-status">
-            <div className="status-indicator"></div>
-            <span>Connected: {wallet.publicKey?.toString().slice(0, 4)}...{wallet.publicKey?.toString().slice(-4)}</span>
-            <button onClick={() => wallet.disconnect()} className="btn btn-secondary" style={{marginLeft: '1rem'}}>
-              Disconnect
-            </button>
+          <div>
+            {/* Wallet Status and Balance */}
+            <div className="card" style={{marginBottom: '1rem'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div>
+                  <div style={{color: '#10b981', fontWeight: 'bold'}}>
+                    ✅ Connected: {wallet.publicKey?.toString().slice(0, 4)}...{wallet.publicKey?.toString().slice(-4)}
+                  </div>
+                  <div style={{color: '#fbbf24', fontSize: '1.1rem', fontWeight: 'bold'}}>
+                    💰 {gorBalance.toFixed(6)} $GOR
+                  </div>
+                </div>
+                <div style={{display: 'flex', gap: '0.5rem'}}>
+                  <button 
+                    onClick={fetchGorBalance} 
+                    className="btn btn-secondary"
+                    style={{padding: '0.25rem 0.5rem', fontSize: '0.8rem'}}
+                    title="Refresh balance"
+                  >
+                    🔄 Refresh
+                  </button>
+                  <button 
+                    onClick={() => wallet.disconnect()} 
+                    className="btn btn-secondary"
+                    style={{padding: '0.25rem 0.5rem', fontSize: '0.8rem'}}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {!game ? (
+              <div className="card">
+                <div className="card-header">Create or Join Game</div>
+                
+                {!showPublicLobby ? (
+                  <div>
+                    <div style={{marginBottom: '1rem'}}>
+                      <label style={{display: 'block', marginBottom: '0.5rem', color: '#10b981'}}>
+                        Wager Amount ($GOR):
+                      </label>
+                      <input
+                        type="text"
+                        value={wagerInput}
+                        onChange={handleWagerChange}
+                        placeholder="0.001"
+                        className="input-field"
+                        style={{width: '100%'}}
+                      />
+                      <div style={{fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem'}}>
+                        Your Balance: {gorBalance.toFixed(6)} $GOR
+                      </div>
+                    </div>
+
+                    <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem'}}>
+                      <button
+                        onClick={createGame}
+                        disabled={loading || !isConnected}
+                        className="btn btn-primary"
+                      >
+                        {loading ? "Creating..." : "🎮 Create Game"}
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowPublicLobby(true)}
+                        disabled={loading}
+                        className="btn btn-secondary"
+                      >
+                        <Eye className="w-4 h-4 inline mr-1" />
+                        Public Lobby
+                      </button>
+                      
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Game ID"
+                          value={gameId}
+                          onChange={(e) => setGameId(e.target.value)}
+                          className="input-field"
+                          style={{width: '100%', marginBottom: '0.5rem'}}
+                        />
+                        <button
+                          onClick={joinGame}
+                          disabled={loading || !gameId || !isConnected}
+                          className="btn btn-primary"
+                          style={{width: '100%', fontSize: '0.9rem'}}
+                        >
+                          {loading ? "Joining..." : "Join Private"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+                      <h3 style={{color: '#10b981', margin: 0}}>
+                        <Trophy className="w-5 h-5 inline mr-2" />
+                        Public Wager Games
+                      </h3>
+                      <button
+                        onClick={() => setShowPublicLobby(false)}
+                        className="btn btn-secondary"
+                        style={{padding: '0.25rem 0.5rem', fontSize: '0.8rem'}}
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+                    
+                    {publicGames.length === 0 ? (
+                      <div style={{textAlign: 'center', padding: '2rem', color: '#6b7280'}}>
+                        <p>No public games available</p>
+                        <p style={{fontSize: '0.9rem'}}>Create a public game to get started!</p>
+                      </div>
+                    ) : (
+                      <div style={{maxHeight: '300px', overflowY: 'auto'}}>
+                        {publicGames.map((publicGame) => (
+                          <div key={publicGame.id} style={{
+                            background: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            borderRadius: '8px',
+                            padding: '1rem',
+                            marginBottom: '0.5rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}>
+                            <div>
+                              <div style={{fontWeight: 'bold', color: '#10b981'}}>
+                                Game #{publicGame.id}
+                              </div>
+                              <div style={{fontSize: '0.9rem', color: '#d1d5db'}}>
+                                Wager: {publicGame.wager.toFixed(6)} $GOR
+                              </div>
+                              <div style={{fontSize: '0.8rem', color: '#9ca3af'}}>
+                                by {publicGame.creatorName || 'Anonymous'}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => joinPublicGame(publicGame)}
+                              disabled={loading || publicGame.wager > gorBalance}
+                              className="btn btn-primary"
+                              style={{fontSize: '0.9rem'}}
+                            >
+                              Join Game
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="card">
+                <div className="card-header">Game #{game.id}</div>
+                
+                {/* Game Status and Actions */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-green-300 flex items-center gap-3">
+                    <Hash className="w-6 h-6" />
+                    Game #{game.id}
+                  </h2>
+                  
+                  {/* Game Actions - Enhanced for both players */}
+                  <div className="flex gap-2">
+                    {(game.status === 'waiting' || game.status === 'playing') && (
+                      <button
+                        onClick={abandonGame}
+                        disabled={loading}
+                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          Abandon Game
+                        </div>
+                      </button>
+                    )}
+                    
+                    {(game.status === 'finished' || game.status === 'abandoned') && (
+                      <button
+                        onClick={() => {
+                          setGame(null);
+                          setGameId("");
+                        }}
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold px-4 py-2 rounded-lg transition-all duration-300 text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          New Game
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Game Status Display */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center">
+                    <div className="text-sm text-gray-400">Status</div>
+                    <div className={`text-lg font-bold ${
+                      game.status === 'waiting' ? 'text-yellow-400' :
+                      game.status === 'playing' ? 'text-green-400' :
+                      game.status === 'finished' ? 'text-blue-400' :
+                      game.status === 'abandoned' ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {game.status === 'waiting' && '⏳ Waiting'}
+                      {game.status === 'playing' && '🎮 Playing'}
+                      {game.status === 'finished' && '🏁 Finished'}
+                      {game.status === 'abandoned' && '⏰ Abandoned'}
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="text-sm text-gray-400">Wager</div>
+                    <div className="text-lg font-bold text-green-400">
+                      {game.wager > 0 ? `${game.wager.toFixed(6)} $GOR` : 'Free'}
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="text-sm text-gray-400">Players</div>
+                    <div className="text-lg font-bold text-white">
+                      {game.playerO ? '2/2' : '1/2'}
+                    </div>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="text-sm text-gray-400">Turn</div>
+                    <div className="text-lg font-bold text-white">
+                      {game.status === 'playing' ? (
+                        game.currentTurn === 1 ? '🗑️ Trash' : '♻️ Recycle'
+                      ) : (
+                        game.status === 'finished' ? (
+                          game.winner === 1 ? '🗑️ Won' :
+                          game.winner === 2 ? '♻️ Won' : '🤝 Tie'
+                        ) : (
+                          game.status === 'abandoned' ? '⏰ None' : '-'
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Abandoned Game Info */}
+                {game.status === 'abandoned' && (
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 mb-4">
+                    <div className="flex items-center gap-2 text-red-400 font-bold mb-2">
+                      <Clock className="w-5 h-5" />
+                      Game Abandoned
+                    </div>
+                    <div className="text-sm text-gray-300">
+                      {game.abandonReason === 'timeout' && 'Game was abandoned due to inactivity timeout.'}
+                      {game.abandonReason === 'player_request' && 'Game was abandoned by player request.'}
+                      {game.wager > 0 && ` ${game.wager.toFixed(6)} $GOR has been returned to both players.`}
+                    </div>
+                  </div>
+                )}
+
+                <div className="game-board enhanced">
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => makeMove(i)}
+                      disabled={loading || game.status !== "playing" || game.board[i] !== 0}
+                      className={getCellClassName(i)}
+                      style={{
+                        transform: winningCells.includes(i) ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      {getCellContent(i)}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Game Progress Indicators */}
+                {game.status === "playing" && (
+                  <div className="turn-indicator">
+                    <div className={`player-turn ${game.currentTurn === 1 ? 'active' : ''}`}>
+                      🗑️ Trash Cans {wallet.publicKey?.toString() === game.playerX ? '(You)' : ''}
+                    </div>
+                    <div className="vs-divider">VS</div>
+                    <div className={`player-turn ${game.currentTurn === 2 ? 'active' : ''}`}>
+                      ♻️ Recycling {wallet.publicKey?.toString() === game.playerO ? '(You)' : ''}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Winning Animation */}
+                {game.status === "finished" && game.winner && (
+                  <div className="victory-banner">
+                    <div className="victory-content">
+                      <div className="victory-icon">
+                        {game.winner === 1 ? '🗑️' : '♻️'}
+                      </div>
+                      <div className="victory-text">
+                        {game.winner === 1 ? 'TRASH CANS WIN!' : 'RECYCLING WINS!'}
+                      </div>
+                      {game.wager > 0 && (
+                        <div className="victory-prize">
+                          💰 Prize: {(game.wager * 2).toFixed(6)} $GOR
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {game.status === "waiting" && (
+                  <div style={{textAlign: 'center', margin: '1rem 0'}}>
+                    <p style={{color: '#10b981', fontWeight: 'bold'}}>Share Game ID: {game.id}</p>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(game.id);
+                        toast.success("Game ID copied!");
+                      }}
+                      className="btn btn-secondary"
+                      style={{marginTop: '0.5rem'}}
+                    >
+                      📋 Copy Game ID
+                    </button>
+                  </div>
+                )}
+
+                {game.status === "finished" && (
+                  <div style={{textAlign: 'center', marginTop: '1rem'}}>
+                    <button
+                      onClick={() => {
+                        setGame(null);
+                        setGameId("");
+                      }}
+                      className="btn btn-primary"
+                    >
+                      🎮 Play Again
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
-
-      {wallet.connected && (
-        <div>
-          <div className="balance-display">
-            <div className="balance-item balance-gor">
-              💰 {gorBalance.toFixed(6)} $GOR
-              <button 
-                onClick={fetchGorBalance} 
-                style={{
-                  marginLeft: '0.5rem', 
-                  background: 'none', 
-                  border: 'none', 
-                  color: '#10b981', 
-                  cursor: 'pointer',
-                  fontSize: '0.75rem'
-                }}
-                title="Refresh balance"
-              >
-                🔄
-              </button>
-            </div>
-          </div>
-
-          {!game ? (
-            <div className="card">
-              <div className="card-header">Create or Join Game</div>
-              
-              <div className="form-group">
-                <label className="form-label">Wager Amount ($GOR)</label>
-                <input
-                  type="text"
-                  value={wagerInput}
-                  onChange={handleWagerChange}
-                  className="form-input"
-                  placeholder="Enter wager amount (e.g. 0.002)"
-                />
-                <div style={{fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem'}}>
-                  Balance: {gorBalance.toFixed(6)} $GOR
-                </div>
-              </div>
-
-              <div style={{display: 'flex', gap: '1rem', justifyContent: 'center'}}>
-                <button
-                  onClick={createGame}
-                  disabled={loading || !isConnected}
-                  className="btn btn-primary"
-                >
-                  {loading ? "Creating..." : "Create Game"}
-                </button>
-              </div>
-
-              <div style={{margin: '2rem 0', textAlign: 'center', color: '#9ca3af'}}>
-                OR
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Join Game by ID</label>
-                <input
-                  type="text"
-                  value={gameId}
-                  onChange={(e) => setGameId(e.target.value)}
-                  className="form-input"
-                  placeholder="Enter 4-digit Game ID"
-                />
-                <button
-                  onClick={joinGame}
-                  disabled={loading || !gameId || !isConnected}
-                  className="btn btn-primary"
-                  style={{marginTop: '0.5rem', width: '100%'}}
-                >
-                  {loading ? "Joining..." : "Join Game"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="card-header">Game #{game.id}</div>
-              
-              {/* Game Status and Actions */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-green-300 flex items-center gap-3">
-                  <Hash className="w-6 h-6" />
-                  Game #{game.id}
-                </h2>
-                
-                {/* Game Actions */}
-                <div className="flex gap-2">
-                  {game.status === 'playing' && (
-                    <button
-                      onClick={abandonGame}
-                      disabled={loading}
-                      className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Abandon Game
-                      </div>
-                    </button>
-                  )}
-                  
-                  {(game.status === 'finished' || game.status === 'abandoned') && (
-                    <button
-                      onClick={() => setGame(null)}
-                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold px-4 py-2 rounded-lg transition-all duration-300 text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        New Game
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Game Status Display */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center">
-                  <div className="text-sm text-gray-400">Status</div>
-                  <div className={`text-lg font-bold ${
-                    game.status === 'waiting' ? 'text-yellow-400' :
-                    game.status === 'playing' ? 'text-green-400' :
-                    game.status === 'finished' ? 'text-blue-400' :
-                    game.status === 'abandoned' ? 'text-red-400' : 'text-gray-400'
-                  }`}>
-                    {game.status === 'waiting' && '⏳ Waiting'}
-                    {game.status === 'playing' && '🎮 Playing'}
-                    {game.status === 'finished' && '🏁 Finished'}
-                    {game.status === 'abandoned' && '⏰ Abandoned'}
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-sm text-gray-400">Wager</div>
-                  <div className="text-lg font-bold text-green-400">
-                    {game.wager > 0 ? `${game.wager.toFixed(6)} $GOR` : 'Free'}
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-sm text-gray-400">Players</div>
-                  <div className="text-lg font-bold text-white">
-                    {game.playerO ? '2/2' : '1/2'}
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <div className="text-sm text-gray-400">Turn</div>
-                  <div className="text-lg font-bold text-white">
-                    {game.status === 'playing' ? (
-                      game.currentTurn === 1 ? '🗑️ Trash' : '♻️ Recycle'
-                    ) : (
-                      game.status === 'finished' ? (
-                        game.winner === 1 ? '🗑️ Won' :
-                        game.winner === 2 ? '♻️ Won' : '🤝 Tie'
-                      ) : (
-                        game.status === 'abandoned' ? '⏰ None' : '-'
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Abandoned Game Info */}
-              {game.status === 'abandoned' && (
-                <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 mb-4">
-                  <div className="flex items-center gap-2 text-red-400 font-bold mb-2">
-                    <Clock className="w-5 h-5" />
-                    Game Abandoned
-                  </div>
-                  <div className="text-sm text-gray-300">
-                    {game.abandonReason === 'timeout' && 'Game was abandoned due to inactivity timeout.'}
-                    {game.abandonReason === 'player_request' && 'Game was abandoned by player request.'}
-                    {game.wager > 0 && ` ${game.wager.toFixed(6)} $GOR has been returned to both players.`}
-                  </div>
-                </div>
-              )}
-
-              <div className="game-board enhanced">
-                {Array.from({ length: 9 }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => makeMove(i)}
-                    disabled={loading || game.status !== "playing" || game.board[i] !== 0}
-                    className={getCellClassName(i)}
-                    style={{
-                      transform: winningCells.includes(i) ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'all 0.3s ease',
-                    }}
-                  >
-                    {getCellContent(i)}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Game Progress Indicators */}
-              {game.status === "playing" && (
-                <div className="turn-indicator">
-                  <div className={`player-turn ${game.currentTurn === 1 ? 'active' : ''}`}>
-                    🗑️ Trash Cans {wallet.publicKey?.toString() === game.playerX ? '(You)' : ''}
-                  </div>
-                  <div className="vs-divider">VS</div>
-                  <div className={`player-turn ${game.currentTurn === 2 ? 'active' : ''}`}>
-                    ♻️ Recycling {wallet.publicKey?.toString() === game.playerO ? '(You)' : ''}
-                  </div>
-                </div>
-              )}
-              
-              {/* Winning Animation */}
-              {game.status === "finished" && game.winner && (
-                <div className="victory-banner">
-                  <div className="victory-content">
-                    <div className="victory-icon">
-                      {game.winner === 1 ? '🗑️' : '♻️'}
-                    </div>
-                    <div className="victory-text">
-                      {game.winner === 1 ? 'TRASH CANS WIN!' : 'RECYCLING WINS!'}
-                    </div>
-                    {game.wager > 0 && (
-                      <div className="victory-prize">
-                        💰 Prize: {(game.wager * 2).toFixed(6)} $GOR
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {game.status === "waiting" && (
-                <div style={{textAlign: 'center', margin: '1rem 0'}}>
-                  <p style={{color: '#10b981', fontWeight: 'bold'}}>Share Game ID: {game.id}</p>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(game.id);
-                      toast.success("Game ID copied!");
-                    }}
-                    className="btn btn-secondary"
-                    style={{marginTop: '0.5rem'}}
-                  >
-                    📋 Copy Game ID
-                  </button>
-                </div>
-              )}
-
-              {game.status === "finished" && (
-                <div style={{textAlign: 'center', marginTop: '1rem'}}>
-                  <button
-                    onClick={() => {
-                      setGame(null);
-                      setGameId("");
-                    }}
-                    className="btn btn-primary"
-                  >
-                    🎮 Play Again
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 } 
