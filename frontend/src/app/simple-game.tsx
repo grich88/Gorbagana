@@ -1052,10 +1052,15 @@ export default function SimpleGame() {
     }
   }, [showPublicLobby]);
 
-  // Join public game
+  // Join public game - FIXED: Direct join without state race condition
   const joinPublicGame = async (publicGame: Game) => {
     if (!wallet.connected || !wallet.publicKey) {
       toast.error("Please connect your wallet first!");
+      return;
+    }
+
+    if (!isConnected) {
+      toast.error("Game servers are offline!");
       return;
     }
 
@@ -1065,10 +1070,59 @@ export default function SimpleGame() {
     }
 
     setLoading(true);
+    
     try {
+      // FIXED: Join directly with the public game ID, no state update needed
+      console.log('🎮 Joining public game directly:', publicGame.id);
+
+      // Validate that escrow account exists for wagered games
+      if (publicGame.wager > 0 && !publicGame.escrowAccount) {
+        throw new Error("❌ Cannot find shared escrow account - game creator must deposit first");
+      }
+
+      let escrowData = null;
+      
+      // Update local game state first for escrow account reference
+      setGame(publicGame);
       setGameId(publicGame.id);
-      await joinGame();
+      
+      // Create matching escrow deposit if wager > 0
+      if (publicGame.wager > 0) {
+        toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
+        escrowData = await createEscrowDeposit(publicGame.wager, publicGame.id, false, publicGame.escrowAccount);
+        toast.dismiss();
+        console.log('✅ Matching escrow deposit created:', escrowData);
+      }
+
+      // Join the game directly with the public game ID
+      const joinResponse = await fetch(`${API_BASE_URL}/api/games/${publicGame.id}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerAddress: wallet.publicKey.toString(),
+          playerName: 'Player 2',
+          playerODeposit: escrowData?.txSignature
+        })
+      });
+
+      if (!joinResponse.ok) {
+        const errorData = await joinResponse.json();
+        throw new Error(errorData.error || 'Failed to join game');
+      }
+
+      const data = await joinResponse.json();
+      setGame(data.game);
       setShowPublicLobby(false);
+      
+      if (publicGame.wager > 0) {
+        toast.success(`🔒 Joined public game with ${publicGame.wager.toFixed(6)} $GOR wager!`);
+      } else {
+        toast.success("🎮 Successfully joined public game!");
+      }
+      
+      // Refresh balance after transaction
+      setTimeout(fetchGorBalance, 2000);
+      
     } catch (error) {
       console.error('❌ Failed to join public game:', error);
       toast.error("Failed to join public game: " + (error as Error).message);
