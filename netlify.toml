@@ -2,6 +2,12 @@
   # Simple build command that works from root directory
   command = "cd frontend && npm install && npm run build"
   publish = "frontend/out"
+  
+  [build.environment]
+    # Skip Next.js plugin since we're using static export
+    NETLIFY_NEXT_PLUGIN_SKIP = "true"
+    # Ensure Next.js generates static export
+    NEXT_TELEMETRY_DISABLED = "1"
 
 # API proxy to backend
 [[redirects]]
