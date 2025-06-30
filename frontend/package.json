@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "clean": "node -e \"const fs = require('fs'); const path = require('path'); const dirs = ['.next', 'out', 'node_modules']; dirs.forEach(dir => { try { fs.rmSync(dir, {recursive: true, force: true}); console.log('Cleaned:', dir); } catch(e) { console.log('Skip:', dir); } });\""
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",

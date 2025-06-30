@@ -1,7 +1,7 @@
 [build]
-  # Build from root directory but target frontend - skip TypeScript check for now
-  command = "cd frontend && rm -rf node_modules && npm install --include=dev && rm -rf .next && rm -rf out && NEXT_SKIP_TYPE_CHECK=true npm run build"
-  publish = "frontend/out"
+  # Simplified Windows-compatible build command
+  command = "npm run clean && npm install --include=dev && npm run build"
+  publish = "out"
 
 # ULTRA AGGRESSIVE CACHE CLEAR - v5.0
 # Environment variables for build
