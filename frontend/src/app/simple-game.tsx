@@ -120,11 +120,20 @@ export default function SimpleGame() {
       throw new Error("❌ Wager amount must be greater than 0");
     }
 
-    // Check if this is Backpack wallet for better error messages
-    const isBackpack = window.solana?.isBackpack;
+    // FIXED: Check if this is Backpack wallet using correct detection
+    // Backpack provides ethereum interface (isBackpack=true) and solana interface (isPhantom=true due to misreporting)
+    const isBackpackEthereum = window.ethereum?.isBackpack;
+    const isBackpackSolana = window.solana?.isBackpack;
+    const walletAdapterName = wallet.wallet?.adapter?.name;
+    
+    // Consider it Backpack if ANY of these are true
+    const isBackpack = isBackpackEthereum || isBackpackSolana || walletAdapterName?.includes('Backpack');
+    
     if (!isBackpack) {
       console.warn('⚠️ Non-Backpack wallet detected - this may cause issues on Gorbagana');
-      toast.warning('⚠️ For best Gorbagana support, please use Backpack wallet', { duration: 5000 });
+      toast('⚠️ For best Gorbagana support, please use Backpack wallet', { duration: 5000, icon: '⚠️' });
+    } else {
+      console.log('✅ Backpack wallet confirmed - optimal for Gorbagana');
     }
 
     console.log(`\n=== Creating Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);

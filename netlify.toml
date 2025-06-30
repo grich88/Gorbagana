@@ -1,7 +1,8 @@
 [build]
-  # Emergency fix - works with Netlify's expected command
+  # Build from frontend directory  
+  base = "frontend"
   command = "npm run build"
-  publish = "frontend/out"
+  publish = "out"
   
   [build.environment]
     # Skip Next.js plugin since we're using static export
@@ -15,13 +16,13 @@
   to = "https://gorbagana-trash-tac-toe-backend.onrender.com/api/:splat"
   status = 200
 
-# Cache busting headers for critical fixes
+# Cache busting headers for critical wallet conflict fixes
 [[headers]]
   for = "/*"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate, max-age=0, s-maxage=0"
-    X-Cache-Bust = "critical-fix-v1.0"
-    X-Deployment-Time = "2025-01-29-19:15:00"
+    X-Cache-Bust = "wallet-conflict-fix-v7.0"
+    X-Deployment-Time = "2025-01-29-19:20:00"
 
 [[headers]]  
   for = "/_next/static/*"
