@@ -104,7 +104,10 @@ app.post('/api/games', async (req, res) => {
       DEBUGGING_WINNER_AFTER_PROCESSING: game.winner,
       DEBUGGING_WINNER_TYPE: typeof game.winner,
       DEBUGGING_STATUS: game.status,
-      DEBUGGING_BOARD: game.board
+      DEBUGGING_BOARD: game.board,
+      // SEQUENCE TRACKING
+      SEQUENCE_TIMESTAMP: Date.now(),
+      SEQUENCE_EVENT: 'GAME_CREATION'
     });
     
     const savedGame = await db.saveGame(game);
@@ -176,7 +179,11 @@ app.get('/api/games/:gameId', async (req, res) => {
       DEBUGGING_BOARD: game.board,
       DEBUGGING_CREATED_AT: game.createdAt,
       DEBUGGING_PLAYER_O: game.playerO,
-      DEBUGGING_TIME_SINCE_CREATION: Date.now() - game.createdAt
+      DEBUGGING_TIME_SINCE_CREATION: Date.now() - game.createdAt,
+      // SEQUENCE TRACKING
+      SEQUENCE_TIMESTAMP: Date.now(),
+      SEQUENCE_EVENT: 'GAME_RETRIEVAL',
+      SEQUENCE_GAME_AGE: Date.now() - game.createdAt
     });
     res.json({ game });
   } catch (error) {
@@ -392,91 +399,105 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
     const { gameId } = req.params;
     const { playerAddress, reason } = req.body;
     
+    console.log(`🚨🚨🚨 ABANDON REQUEST RECEIVED 🚨🚨🚨`);
     console.log(`⏰ Abandon request for game ${gameId} by ${playerAddress} (reason: ${reason})`);
+    console.log(`🔍 Request details:`, {
+      gameId,
+      playerAddress,
+      reason,
+      timestamp: Date.now(),
+      userAgent: req.headers['user-agent'],
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      xForwardedFor: req.headers['x-forwarded-for'],
+      fullHeaders: req.headers
+    });
+    console.log(`📊 Request body:`, req.body);
+    console.log(`🚨🚨🚨 END ABANDON REQUEST 🚨🚨🚨`);
     
     const game = await db.getGame(gameId);
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
-    
-    console.log(`🎮 Game ${gameId} current state:`, {
+
+    console.log(`🎮 Current game state before abandon:`, {
+      id: game.id,
       status: game.status,
       playerX: game.playerX,
       playerO: game.playerO,
-      createdAt: new Date(game.createdAt).toISOString(),
-      updatedAt: game.updatedAt ? new Date(game.updatedAt).toISOString() : 'N/A'
+      createdAt: game.createdAt,
+      timeSinceCreation: Date.now() - game.createdAt,
+      winner: game.winner,
+      wager: game.wager
     });
-    
-    // Validate that the requester is a player in the game
-    const isPlayerX = game.playerX === playerAddress;
-    const isPlayerO = game.playerO === playerAddress;
-    
-    if (!isPlayerX && !isPlayerO) {
-      return res.status(403).json({ error: 'You are not a player in this game' });
-    }
-    
+
     // Allow abandoning games that are waiting, playing, or already abandoned (for second player fund return)
     if (!['waiting', 'playing', 'abandoned'].includes(game.status)) {
       return res.status(400).json({ error: 'Game cannot be abandoned in current state' });
     }
-    
+
     // If game is already abandoned, check if this player has already abandoned
     if (game.status === 'abandoned' && game.abandonedBy === playerAddress) {
       return res.status(400).json({ error: 'You have already abandoned this game' });
     }
-    
+
     // MUCH MORE PERMISSIVE abandonment criteria
-    const now = Date.now();
-    const gameAge = now - game.createdAt;
-    const lastUpdate = game.updatedAt || game.createdAt;
-    const timeSinceLastMove = now - lastUpdate;
+    // Allow any player to abandon at any time for testing
+    let canAbandon;
     
-    const GAME_TIMEOUT = 30 * 60 * 1000; // Reduced to 30 minutes
-    const MOVE_TIMEOUT = 10 * 60 * 1000; // Reduced to 10 minutes
-    
-    // Very permissive abandonment - almost always allow it
-    const canAbandon = true; // Always allow abandonment for testing
-    /* 
-    Previous restrictive logic:
-    const canAbandon = reason === 'player_request' || 
-                      gameAge > GAME_TIMEOUT || 
-                      timeSinceLastMove > MOVE_TIMEOUT ||
-                      (isPlayerX && game.status === 'waiting') || 
-                      game.status === 'playing';
-    */
-    
+    if (process.env.NODE_ENV === 'production') {
+      // In production, use more restrictive criteria
+      canAbandon = reason === 'player_request' ||
+                        reason === 'timeout' ||
+                        reason === 'inactivity' ||
+                        (Date.now() - game.createdAt) > (2 * 60 * 60 * 1000); // 2 hours
+    } else {
+      // Very permissive abandonment - almost always allow it
+      canAbandon = true; // Always allow abandonment for testing
+    }
+
     console.log(`🔍 Abandon check:`, {
       canAbandon,
-      gameAge: Math.round(gameAge / 1000) + 's',
-      timeSinceLastMove: Math.round(timeSinceLastMove / 1000) + 's',
-      isPlayerX,
-      isPlayerO,
-      reason
+      reason,
+      gameAge: Date.now() - game.createdAt,
+      playerAddress,
+      isPlayerX: game.playerX === playerAddress,
+      isPlayerO: game.playerO === playerAddress,
+      gameStatus: game.status
     });
-    
+
     if (!canAbandon) {
       return res.status(400).json({ 
         error: 'Game cannot be abandoned yet. Wait for timeout or inactivity period.',
-        timeRemaining: Math.max(GAME_TIMEOUT - gameAge, MOVE_TIMEOUT - timeSinceLastMove)
+        reason: 'Abandonment criteria not met'
       });
     }
-    
+
     // Mark game as abandoned
-    const success = await db.updateGame(gameId, {
+    const updateData = {
       status: 'abandoned',
       winner: 0, // No winner in abandoned games
-      updatedAt: now,
+      updatedAt: Date.now(),
       abandonedBy: playerAddress,
       abandonReason: reason || 'timeout'
-    });
-    
+    };
+
+    const success = await db.updateGame(gameId, updateData);
     if (!success) {
       return res.status(500).json({ error: 'Failed to abandon game' });
     }
-    
+
     const updatedGame = await db.getGame(gameId);
     
     console.log(`✅ Game ${gameId} marked as abandoned by ${playerAddress} (reason: ${reason})`);
+    console.log(`🎮 Final game state after abandon:`, {
+      id: updatedGame.id,
+      status: updatedGame.status,
+      winner: updatedGame.winner,
+      abandonedBy: updatedGame.abandonedBy,
+      abandonReason: updatedGame.abandonReason
+    });
+    
     res.json({ success: true, game: updatedGame, message: 'Game marked as abandoned' });
   } catch (error) {
     console.error('Error abandoning game:', error);
