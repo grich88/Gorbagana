@@ -400,7 +400,9 @@ export default function SimpleGame() {
             hasMoveBeenMade,
             hasTurnChanged,
             currentPlayerO: game.playerO,
-            newPlayerO: updatedGame.playerO
+            newPlayerO: updatedGame.playerO,
+            playerOCheck: `${!game.playerO} && ${!!updatedGame.playerO}`,
+            statusChanging: game.status !== updatedGame.status
           });
           
           // Update game state first
@@ -412,6 +414,7 @@ export default function SimpleGame() {
             toast.success('🎮 Opponent joined! Game is starting!', { duration: 6000 });
           } else if (hasStatusChanged) {
             if (updatedGame.status === 'playing' && game.status === 'waiting') {
+              console.log('🚀 STATUS CHANGED TO PLAYING - Game started!');
               toast.success('🚀 Game has started!', { duration: 4000 });
             } else if (updatedGame.status === 'finished') {
               if (updatedGame.winner === 1) {
@@ -537,7 +540,7 @@ export default function SimpleGame() {
         if (finishedGame.status === 'abandoned') {
           toast.success(`⏰ Game abandoned - ${finishedGame.wager.toFixed(6)} $GOR will be returned automatically.`);
         } else {
-          toast.error('😢 You lost this game. Better luck next time!');
+          toast.error("🗑️ You're such trash, recycle yourself and try again! - Gorbagio");
         }
       }
       

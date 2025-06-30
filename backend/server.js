@@ -363,9 +363,14 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
       return res.status(403).json({ error: 'You are not a player in this game' });
     }
     
-    // Only allow abandoning games that are waiting or playing
-    if (!['waiting', 'playing'].includes(game.status)) {
+    // Allow abandoning games that are waiting, playing, or already abandoned (for second player fund return)
+    if (!['waiting', 'playing', 'abandoned'].includes(game.status)) {
       return res.status(400).json({ error: 'Game cannot be abandoned in current state' });
+    }
+    
+    // If game is already abandoned, check if this player has already abandoned
+    if (game.status === 'abandoned' && game.abandonedBy === playerAddress) {
+      return res.status(400).json({ error: 'You have already abandoned this game' });
     }
     
     // MUCH MORE PERMISSIVE abandonment criteria
