@@ -1,75 +1,23 @@
 [build]
-  # Simplified Windows-compatible build command
-  command = "npm run clean && npm install --include=dev && npm run build"
-  publish = "out"
+  # Simple build command that works from root directory
+  command = "cd frontend && npm install && npm run build"
+  publish = "frontend/out"
 
-# ULTRA AGGRESSIVE CACHE CLEAR - v5.0
-# Environment variables for build
-[build.environment]
-  NEXT_TELEMETRY_DISABLED = "1"
-  NODE_ENV = "production"
-  # Skip Netlify Next.js plugin since we use static export
-  NETLIFY_NEXT_PLUGIN_SKIP = "true"
-  CACHE_BUST_ID = "v5.4-plugin-skip-2025-01-29-1710"
-  BUILD_TIMESTAMP = "1751204400000"
-  FORCE_REBUILD = "true"
-  NODE_VERSION = "20"
-  NPM_FLAGS = "--no-cache"
-  CACHE_BUST = "v5.4-plugin-skip-2025-01-29-17-10"
-  BUILD_ID = "plugin-skip-v5.4"
-
-# NUCLEAR CACHE CLEAR - Force all files to reload
-[[headers]]
-  for = "/*"
-  [headers.values]
-    # ULTRA AGGRESSIVE CACHE CLEARING v5.0
-    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0, s-maxage=0"
-    Pragma = "no-cache"
-    Expires = "0"
-    # Force new ETag
-    ETag = "v5.4-plugin-skip"
-    # Custom headers for verification
-    X-Cache-Bust = "v5.4-plugin-skip-2025-01-29-17-10"
-    X-Deployment-Time = "2025-01-29-17:10:00"
-    X-RPC-Endpoint = "gorchain.wstf.io"
-
-# Force JS files to reload
-[[headers]]
-  for = "/_next/static/chunks/*"
-  [headers.values]
-    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
-    X-Cache-Bust = "v5-js-reload"
-
-# Basic redirects for SPA
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Force cache refresh with headers
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    # FORCE RELOAD OF ALL STATIC ASSETS
-    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0"
-    Pragma = "no-cache"
-    Expires = "0"
-    ETag = "v5.4-plugin-skip-static"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-
-# API redirect for backend
+# API proxy to backend
 [[redirects]]
   from = "/api/*"
   to = "https://gorbagana-trash-tac-toe-backend.onrender.com/api/:splat"
   status = 200
 
-# SPA fallback (MUST be last)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200 
+# Cache busting headers for critical fixes
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0, s-maxage=0"
+    X-Cache-Bust = "critical-fix-v1.0"
+    X-Deployment-Time = "2025-01-29-19:15:00"
+
+[[headers]]  
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate, max-age=0" 
