@@ -89,7 +89,8 @@ app.post('/api/games', async (req, res) => {
       ...gameData,
       id: gameId,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      board: gameData.board ? gameData.board.map(cell => Number(cell)) : [0, 0, 0, 0, 0, 0, 0, 0, 0]
     };
     
     console.log('💾 Game data being saved:', {
@@ -97,7 +98,9 @@ app.post('/api/games', async (req, res) => {
       wager: game.wager,
       escrowAccount: game.escrowAccount,
       hasEscrowAccount: !!game.escrowAccount,
-      playerXDeposit: game.playerXDeposit
+      playerXDeposit: game.playerXDeposit,
+      boardType: typeof game.board[0],
+      boardSample: game.board.slice(0, 3)
     });
     
     const success = await db.saveGame(game);
@@ -109,7 +112,9 @@ app.post('/api/games', async (req, res) => {
         gameId: savedGame.id,
         wager: savedGame.wager,
         escrowAccount: savedGame.escrowAccount,
-        hasEscrowAccount: !!savedGame.escrowAccount
+        hasEscrowAccount: !!savedGame.escrowAccount,
+        boardType: typeof savedGame.board[0],
+        boardSample: savedGame.board.slice(0, 3)
       });
       res.json({ success: true, game: savedGame });
     } else {
@@ -131,11 +136,18 @@ app.get('/api/games/:gameId', async (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
     
+    // CRITICAL FIX: Ensure board is always numbers when retrieving
+    if (game.board) {
+      game.board = game.board.map(cell => Number(cell));
+    }
+    
     console.log(`📖 Retrieved game: ${gameId}`, {
       wager: game.wager,
       escrowAccount: game.escrowAccount,
       hasEscrowAccount: !!game.escrowAccount,
-      status: game.status
+      status: game.status,
+      boardType: typeof game.board[0],
+      boardSample: game.board.slice(0, 3)
     });
     res.json({ game });
   } catch (error) {
@@ -279,14 +291,24 @@ app.post('/api/games/:gameId/move', async (req, res) => {
       return res.status(400).json({ error: 'Not your turn' });
     }
     
-    // Validate move
-    if (position < 0 || position > 8 || game.board[position] !== 0) {
-      return res.status(400).json({ error: 'Invalid move' });
+    // Validate position and make move
+    if (game.board[position] !== 0) {
+      return res.status(400).json({ error: 'Position already taken' });
     }
     
-    // Make the move
-    const newBoard = [...game.board];
+    // CRITICAL FIX: Ensure board is always numbers, not strings
+    const newBoard = game.board.map(cell => Number(cell));
     newBoard[position] = currentPlayer;
+    
+    console.log('🎯 Move validation:', {
+      gameId,
+      position,
+      currentPlayer,
+      oldValue: game.board[position],
+      newValue: newBoard[position],
+      boardType: typeof newBoard[0],
+      boardSample: newBoard.slice(0, 3)
+    });
     
     // Check for winner
     const checkWin = (board, player) => {
@@ -308,7 +330,8 @@ app.post('/api/games/:gameId/move', async (req, res) => {
       winner = currentPlayer;
       status = 'finished';
     } else if (newBoard.every(cell => cell !== 0)) {
-      // Draw
+      // Draw - FIXED: Now works correctly with number board
+      console.log('🤝 Tie detected - board full:', newBoard);
       status = 'finished';
     }
     
