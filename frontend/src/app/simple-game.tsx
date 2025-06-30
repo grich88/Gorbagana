@@ -5,9 +5,10 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
 import { LAMPORTS_PER_SOL, PublicKey, Connection, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
+import { Hash, Clock, Plus } from 'lucide-react';
 
 // Game types
-type GameStatus = "waiting" | "playing" | "finished";
+type GameStatus = "waiting" | "playing" | "finished" | "abandoned";
 
 interface Game {
   id: string;
@@ -25,6 +26,8 @@ interface Game {
   txSignature?: string;
   playerXDeposit?: string;
   playerODeposit?: string;
+  updatedAt?: number;
+  abandonReason?: string;
 }
 
 // API Configuration
@@ -359,44 +362,42 @@ export default function SimpleGame() {
     }
   }, [wallet.connected, wallet.publicKey, fetchGorBalance]);
 
-  // Real-time game polling for cross-device sync
+  // Polling for game updates
   useEffect(() => {
     if (!game || !isConnected) return;
 
     const pollGame = async () => {
+      if (isPolling) return; // Prevent overlapping polls
+
       try {
         const response = await fetch(`${API_BASE_URL}/api/games/${game.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          const updatedGame = data.game;
-          
-          // Only update if game state actually changed
-          if (JSON.stringify(updatedGame) !== JSON.stringify(game)) {
-            console.log('🔄 Game state updated from server');
-            setGame(updatedGame);
-            
-            // Notify about game status changes
-            if (updatedGame.status === 'playing' && game.status === 'waiting') {
-              toast.success('🎮 Opponent joined! Game started!');
-            } else if (updatedGame.status === 'finished' && game.status === 'playing') {
-              if (updatedGame.winner === 1) {
-                toast.success('🗑️ Trash Cans win!');
-              } else if (updatedGame.winner === 2) {
-                toast.success('♻️ Recycling Bins win!');
-              } else {
-                toast('🤝 Game ended in a tie!');
-              }
-              
-              // Handle prize distribution
+        if (!response.ok) {
+          console.warn(`Failed to fetch game ${game.id}: ${response.status}`);
+          return;
+        }
+
+        const data = await response.json();
+        const updatedGame = data.game;
+
+        if (updatedGame) {
+          setGame(updatedGame);
+
+          // Handle game completion
+          if (updatedGame.status === 'finished' || updatedGame.status === 'abandoned') {
+            if (updatedGame.winner !== undefined || updatedGame.status === 'abandoned') {
               await handlePrizeDistribution(updatedGame);
             }
+          } else if (updatedGame.status === 'playing') {
+            // Check for abandoned games during active polling
+            await checkForAbandonedGame(updatedGame);
           }
         }
       } catch (error) {
-        console.error('❌ Failed to poll game state:', error);
+        console.error('❌ Error polling game:', error);
       }
     };
 
+    pollGame(); // Initial poll
     setIsPolling(true);
     const pollInterval = setInterval(pollGame, 5000); // Reduced from 3s to 5s for performance
     
@@ -440,6 +441,19 @@ export default function SimpleGame() {
             console.error('❌ Failed to return tie game deposits:', error);
             toast.error('⚠️ Failed to return deposits - please contact support');
           }
+        } else if (finishedGame.status === 'abandoned') {
+          // Abandoned game - return deposits to both players
+          console.log('⏰ Abandoned game. Returning deposits to both players...');
+          try {
+            await transferPrize(finishedGame.wager, wallet.publicKey); // Return to creator (self)
+            if (finishedGame.playerO) {
+              await transferPrize(finishedGame.wager, new PublicKey(finishedGame.playerO)); // Return to Player O
+            }
+            toast.success(`⏰ Game abandoned - ${finishedGame.wager.toFixed(6)} $GOR returned to both players!`);
+          } catch (error) {
+            console.error('❌ Failed to return abandoned game deposits:', error);
+            toast.error('⚠️ Failed to return deposits - please contact support');
+          }
         } else if (isWinner) {
           // Creator won - take the full prize
           console.log('🏆 You won! Distributing your prize...');
@@ -472,7 +486,11 @@ export default function SimpleGame() {
         toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR! Prize will be transferred automatically.`);
       } else if (!isWinner && !isCreator) {
         // Loser and not creator - just show result
-        toast.error('😢 You lost this game. Better luck next time!');
+        if (finishedGame.status === 'abandoned') {
+          toast.success(`⏰ Game abandoned - ${finishedGame.wager.toFixed(6)} $GOR will be returned automatically.`);
+        } else {
+          toast.error('😢 You lost this game. Better luck next time!');
+        }
       }
       
     } catch (error) {
@@ -481,43 +499,60 @@ export default function SimpleGame() {
     }
   };
 
-  // Transfer prize from escrow to winner
+  // Transfer prize from escrow to winner (enhanced fee handling)
   const transferPrize = async (amount: number, recipient: PublicKey) => {
     if (!escrowAccount) {
       throw new Error('No escrow account available - only game creator can distribute prizes');
     }
 
     try {
-      // Check escrow balance first and account for rent exemption
+      // Check escrow balance first and account for rent exemption and fees
       const escrowBalance = await connection.getBalance(escrowAccount.publicKey);
       let prizeLamports = Math.floor(amount * LAMPORTS_PER_SOL);
+      
+      // Get current transaction fee estimate
+      const { blockhash } = await connection.getLatestBlockhash();
+      const testTransaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: escrowAccount.publicKey,
+          toPubkey: recipient,
+          lamports: prizeLamports,
+        })
+      );
+      testTransaction.feePayer = escrowAccount.publicKey;
+      testTransaction.recentBlockhash = blockhash;
+      testTransaction.sign(escrowAccount);
+      
+      // Estimate transaction fee
+      const feeCalculator = await connection.getFeeForMessage(testTransaction.compileMessage());
+      const estimatedFee = feeCalculator.value || 10000; // Default to 10k lamports if estimation fails
+      
       const rentExemptMinimum = await connection.getMinimumBalanceForRentExemption(0);
-      const feeBuffer = 10000; // Buffer for transaction fees
-      const totalNeeded = prizeLamports + feeBuffer;
+      const totalFeeBuffer = estimatedFee + 5000; // Add buffer for fee variations
+      const totalNeeded = prizeLamports + totalFeeBuffer;
       
       console.log(`💰 Transferring ${amount.toFixed(6)} $GOR to ${recipient.toBase58()}...`);
       console.log(`🔍 Escrow balance: ${escrowBalance} lamports`);
       console.log(`🔍 Prize amount: ${prizeLamports} lamports`);
-      console.log(`🔍 Fee buffer: ${feeBuffer} lamports`);
+      console.log(`🔍 Estimated fee: ${estimatedFee} lamports`);
+      console.log(`🔍 Fee buffer: ${totalFeeBuffer} lamports`);
       console.log(`🔍 Rent exempt minimum: ${rentExemptMinimum} lamports`);
       console.log(`🔍 Total needed: ${totalNeeded} lamports`);
       
       if (escrowBalance < totalNeeded) {
-        // Try to transfer available balance minus buffer
-        const availableToTransfer = escrowBalance - feeBuffer;
+        // Adjust transfer to available balance minus fees
+        const availableToTransfer = escrowBalance - totalFeeBuffer;
         if (availableToTransfer > 0) {
-          console.log(`⚠️ Adjusting transfer to available balance: ${availableToTransfer} lamports`);
+          console.log(`⚠️ Adjusting transfer to available balance minus fees: ${availableToTransfer} lamports`);
           const adjustedAmount = availableToTransfer / LAMPORTS_PER_SOL;
           console.log(`💰 Adjusted transfer: ${adjustedAmount.toFixed(6)} $GOR`);
-          // Use the adjusted amount instead
           prizeLamports = availableToTransfer;
         } else {
-          throw new Error(`Insufficient escrow balance: ${escrowBalance} lamports, need ${totalNeeded} lamports`);
+          throw new Error(`Insufficient escrow balance for transfer and fees: ${escrowBalance} lamports available, need ${totalNeeded} lamports`);
         }
       }
       
-      const { blockhash } = await connection.getLatestBlockhash();
-      
+      // Create the actual transaction with proper fee handling
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: escrowAccount.publicKey,
@@ -526,7 +561,7 @@ export default function SimpleGame() {
         })
       );
       
-      transaction.feePayer = escrowAccount.publicKey;
+      transaction.feePayer = escrowAccount.publicKey; // Fees paid from escrow account
       transaction.recentBlockhash = blockhash;
       transaction.sign(escrowAccount);
 
@@ -542,6 +577,10 @@ export default function SimpleGame() {
       
       console.log(`✅ Prize transferred! Signature: ${signature}`);
       console.log(`🔗 Explorer: https://gorexplorer.net/lookup.html#tx/${signature}`);
+      
+      // Verify final escrow balance
+      const finalBalance = await connection.getBalance(escrowAccount.publicKey);
+      console.log(`💰 Remaining escrow balance: ${(finalBalance / LAMPORTS_PER_SOL).toFixed(6)} $GOR`);
       
     } catch (error) {
       console.error('❌ Prize transfer failed:', error);
@@ -892,6 +931,102 @@ export default function SimpleGame() {
     }
   };
 
+  // Check for abandoned games (call this periodically)
+  const checkForAbandonedGame = async (currentGame: Game) => {
+    if (!currentGame || currentGame.status !== 'playing' || currentGame.wager <= 0) {
+      return;
+    }
+
+    const now = Date.now();
+    const gameAge = now - currentGame.createdAt;
+    const lastUpdate = currentGame.updatedAt || currentGame.createdAt;
+    const timeSinceLastMove = now - lastUpdate;
+    
+    // Consider game abandoned if:
+    // 1. Game is older than 2 hours, OR
+    // 2. No move made in the last 30 minutes
+    const GAME_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+    const MOVE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    
+    const isAbandoned = gameAge > GAME_TIMEOUT || timeSinceLastMove > MOVE_TIMEOUT;
+    
+    if (isAbandoned) {
+      console.log('⏰ Game appears to be abandoned, attempting to mark as abandoned...');
+      
+      try {
+        // Mark game as abandoned on backend
+        const response = await fetch(`${API_BASE_URL}/api/games/${currentGame.id}/abandon`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerAddress: wallet.publicKey?.toString(),
+            reason: gameAge > GAME_TIMEOUT ? 'timeout' : 'inactivity'
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setGame(data.game);
+          
+          // Trigger prize distribution for abandoned game
+          if (data.game.status === 'abandoned') {
+            await handlePrizeDistribution(data.game);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to mark game as abandoned:', error);
+      }
+    }
+  };
+
+  // Manual abandon game function
+  const abandonGame = async () => {
+    if (!wallet.publicKey || !game) {
+      toast.error("Cannot abandon game - wallet not connected or no active game!");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      game.wager > 0 
+        ? `Are you sure you want to abandon this game? Your ${game.wager.toFixed(6)} $GOR wager will be returned to both players.`
+        : "Are you sure you want to abandon this game?"
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/games/${game.id}/abandon`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerAddress: wallet.publicKey.toString(),
+          reason: 'player_request'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to abandon game');
+      }
+
+      const data = await response.json();
+      setGame(data.game);
+      
+      if (data.game.status === 'abandoned') {
+        await handlePrizeDistribution(data.game);
+        toast.success('Game abandoned successfully! Funds will be returned.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Failed to abandon game:', error);
+      toast.error("Failed to abandon game: " + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="game-container">
       <div className="game-header">
@@ -1025,24 +1160,102 @@ export default function SimpleGame() {
             <div className="card">
               <div className="card-header">Game #{game.id}</div>
               
-              <div className={`game-status ${game.status}`}>
-                {game.status === "waiting" && "⏳ Waiting for opponent..."}
-                {game.status === "playing" && (
-                  <>
-                    🎮 Game in progress! 
-                    {wallet.publicKey?.toString() === game.playerX && game.currentTurn === 1 && " (Your turn - 🗑️)"}
-                    {wallet.publicKey?.toString() === game.playerO && game.currentTurn === 2 && " (Your turn - ♻️)"}
-                    {wallet.publicKey?.toString() === game.playerX && game.currentTurn === 2 && " (Opponent's turn)"}
-                    {wallet.publicKey?.toString() === game.playerO && game.currentTurn === 1 && " (Opponent's turn)"}
-                  </>
-                )}
-                {game.status === "finished" && game.winner && `🏆 ${game.winner === 1 ? 'Trash Cans' : 'Recycling Bins'} win!`}
-                {game.status === "finished" && !game.winner && "🤝 It's a tie!"}
+              {/* Game Status and Actions */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-green-300 flex items-center gap-3">
+                  <Hash className="w-6 h-6" />
+                  Game #{game.id}
+                </h2>
+                
+                {/* Game Actions */}
+                <div className="flex gap-2">
+                  {game.status === 'playing' && (
+                    <button
+                      onClick={abandonGame}
+                      disabled={loading}
+                      className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Abandon Game
+                      </div>
+                    </button>
+                  )}
+                  
+                  {(game.status === 'finished' || game.status === 'abandoned') && (
+                    <button
+                      onClick={() => setGame(null)}
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold px-4 py-2 rounded-lg transition-all duration-300 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Plus className="w-4 h-4" />
+                        New Game
+                      </div>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {game.wager > 0 && (
-                <div style={{textAlign: 'center', margin: '1rem 0', padding: '0.5rem', background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.3)', borderRadius: '8px'}}>
-                  💰 Wager: {game.wager.toFixed(4)} $GOR
+              {/* Game Status Display */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center">
+                  <div className="text-sm text-gray-400">Status</div>
+                  <div className={`text-lg font-bold ${
+                    game.status === 'waiting' ? 'text-yellow-400' :
+                    game.status === 'playing' ? 'text-green-400' :
+                    game.status === 'finished' ? 'text-blue-400' :
+                    game.status === 'abandoned' ? 'text-red-400' : 'text-gray-400'
+                  }`}>
+                    {game.status === 'waiting' && '⏳ Waiting'}
+                    {game.status === 'playing' && '🎮 Playing'}
+                    {game.status === 'finished' && '🏁 Finished'}
+                    {game.status === 'abandoned' && '⏰ Abandoned'}
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-sm text-gray-400">Wager</div>
+                  <div className="text-lg font-bold text-green-400">
+                    {game.wager > 0 ? `${game.wager.toFixed(6)} $GOR` : 'Free'}
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-sm text-gray-400">Players</div>
+                  <div className="text-lg font-bold text-white">
+                    {game.playerO ? '2/2' : '1/2'}
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-sm text-gray-400">Turn</div>
+                  <div className="text-lg font-bold text-white">
+                    {game.status === 'playing' ? (
+                      game.currentTurn === 1 ? '🗑️ Trash' : '♻️ Recycle'
+                    ) : (
+                      game.status === 'finished' ? (
+                        game.winner === 1 ? '🗑️ Won' :
+                        game.winner === 2 ? '♻️ Won' : '🤝 Tie'
+                      ) : (
+                        game.status === 'abandoned' ? '⏰ None' : '-'
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Abandoned Game Info */}
+              {game.status === 'abandoned' && (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 mb-4">
+                  <div className="flex items-center gap-2 text-red-400 font-bold mb-2">
+                    <Clock className="w-5 h-5" />
+                    Game Abandoned
+                  </div>
+                  <div className="text-sm text-gray-300">
+                    {game.abandonReason === 'timeout' && 'Game was abandoned due to inactivity timeout.'}
+                    {game.abandonReason === 'player_request' && 'Game was abandoned by player request.'}
+                    {game.wager > 0 && ` ${game.wager.toFixed(6)} $GOR has been returned to both players.`}
+                  </div>
                 </div>
               )}
 

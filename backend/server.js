@@ -316,7 +316,8 @@ app.post('/api/games/:gameId/move', async (req, res) => {
       board: newBoard,
       currentTurn: currentPlayer === 1 ? 2 : 1,
       winner,
-      status
+      status,
+      updatedAt: Date.now()
     });
     
     if (!success) {
@@ -330,6 +331,73 @@ app.post('/api/games/:gameId/move', async (req, res) => {
   } catch (error) {
     console.error('Error making move:', error);
     res.status(500).json({ error: 'Failed to make move' });
+  }
+});
+
+// Abandon a game (new endpoint)
+app.post('/api/games/:gameId/abandon', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { playerAddress, reason } = req.body;
+    
+    const game = await db.getGame(gameId);
+    if (!game) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    // Validate that the requester is a player in the game
+    const isPlayerX = game.playerX === playerAddress;
+    const isPlayerO = game.playerO === playerAddress;
+    
+    if (!isPlayerX && !isPlayerO) {
+      return res.status(403).json({ error: 'You are not a player in this game' });
+    }
+    
+    // Only allow abandoning games that are waiting or playing
+    if (!['waiting', 'playing'].includes(game.status)) {
+      return res.status(400).json({ error: 'Game cannot be abandoned in current state' });
+    }
+    
+    const now = Date.now();
+    const gameAge = now - game.createdAt;
+    const lastUpdate = game.updatedAt || game.createdAt;
+    const timeSinceLastMove = now - lastUpdate;
+    
+    // Validate abandonment criteria
+    const GAME_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+    const MOVE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    
+    const canAbandon = gameAge > GAME_TIMEOUT || 
+                      timeSinceLastMove > MOVE_TIMEOUT ||
+                      reason === 'player_request'; // Allow manual abandonment
+    
+    if (!canAbandon) {
+      return res.status(400).json({ 
+        error: 'Game cannot be abandoned yet. Wait for timeout or inactivity period.',
+        timeRemaining: Math.max(GAME_TIMEOUT - gameAge, MOVE_TIMEOUT - timeSinceLastMove)
+      });
+    }
+    
+    // Mark game as abandoned
+    const success = await db.updateGame(gameId, {
+      status: 'abandoned',
+      winner: 0, // No winner in abandoned games
+      updatedAt: now,
+      abandonedBy: playerAddress,
+      abandonReason: reason || 'timeout'
+    });
+    
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to abandon game' });
+    }
+    
+    const updatedGame = await db.getGame(gameId);
+    
+    console.log(`⏰ Game ${gameId} marked as abandoned by ${playerAddress} (reason: ${reason})`);
+    res.json({ success: true, game: updatedGame, message: 'Game marked as abandoned' });
+  } catch (error) {
+    console.error('Error abandoning game:', error);
+    res.status(500).json({ error: 'Failed to abandon game' });
   }
 });
 

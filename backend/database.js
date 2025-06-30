@@ -9,7 +9,7 @@ const GameSchema = new mongoose.Schema({
   playerO: { type: String, default: null },
   board: { type: [Number], required: true, default: [0,0,0,0,0,0,0,0,0] },
   currentTurn: { type: Number, required: true, default: 1 },
-  status: { type: String, required: true, enum: ['waiting', 'playing', 'finished'], default: 'waiting' },
+  status: { type: String, required: true, enum: ['waiting', 'playing', 'finished', 'abandoned'], default: 'waiting' },
   winner: { type: Number, default: null },
   createdAt: { type: Number, required: true, default: Date.now },
   updatedAt: { type: Number, required: true, default: Date.now },
@@ -17,7 +17,11 @@ const GameSchema = new mongoose.Schema({
   isPublic: { type: Boolean, required: true, default: false },
   creatorName: { type: String, default: null },
   escrowAccount: { type: String, default: null },
-  txSignature: { type: String, default: null }
+  txSignature: { type: String, default: null },
+  playerXDeposit: { type: String, default: null },
+  playerODeposit: { type: String, default: null },
+  abandonedBy: { type: String, default: null },
+  abandonReason: { type: String, default: null }
 });
 
 const GameModel = mongoose.model('Game', GameSchema);

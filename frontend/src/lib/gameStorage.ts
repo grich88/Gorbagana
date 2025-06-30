@@ -24,7 +24,7 @@ export interface SharedGame {
   playerO?: string
   board: number[]
   currentTurn: number
-  status: 'waiting' | 'playing' | 'finished'
+  status: 'waiting' | 'playing' | 'finished' | 'abandoned'
   winner?: number
   createdAt: number
   updatedAt: number
@@ -33,6 +33,10 @@ export interface SharedGame {
   creatorName?: string
   escrowAccount?: string
   txSignature?: string
+  playerXDeposit?: string
+  playerODeposit?: string
+  abandonedBy?: string
+  abandonReason?: string
 }
 
 // Backend API configuration - Browser-safe environment variable access

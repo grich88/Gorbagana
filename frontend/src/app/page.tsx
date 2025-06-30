@@ -17,8 +17,8 @@ import {
 } from '@solana/web3.js';
 // Removed Transaction and SystemProgram imports - simplified for testnet mode
 
-// Simplified game types
-type GameStatus = "waiting" | "playing" | "finished";
+// Game types
+type GameStatus = "waiting" | "playing" | "finished" | "abandoned";
 
 interface Game {
   id: string;
@@ -34,6 +34,11 @@ interface Game {
   creatorName?: string;
   escrowAccount?: string; // Escrow wallet address
   txSignature?: string; // Transaction signature for escrow
+  updatedAt?: number;
+  playerXDeposit?: string;
+  playerODeposit?: string;
+  abandonedBy?: string;
+  abandonReason?: string;
 }
 
 // $GOR Token Configuration for Gorbagana Testnet
