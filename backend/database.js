@@ -101,22 +101,26 @@ class ProductionDatabase {
           // Update existing
           Object.assign(existingGame, game);
           existingGame.updatedAt = Date.now();
-          await existingGame.save();
+          const savedGame = await existingGame.save();
           console.log(`☁️ Game ${game.id} updated in MongoDB`);
+          return this.formatGameForResponse(savedGame.toObject());
         } else {
           // Create new
           const newGame = new GameModel({
             ...game,
             updatedAt: Date.now()
           });
-          await newGame.save();
+          const savedGame = await newGame.save();
           console.log(`☁️ Game ${game.id} saved to MongoDB`);
+          return this.formatGameForResponse(savedGame.toObject());
         }
-        
-        return true;
       } else {
         // File storage
-        return this.saveGameToFile(game);
+        const success = this.saveGameToFile(game);
+        if (success) {
+          return game; // Return the game object for file storage
+        }
+        return false;
       }
     } catch (error) {
       console.error('❌ Failed to save game:', error);
@@ -124,7 +128,8 @@ class ProductionDatabase {
       // Fallback to file storage if MongoDB fails
       if (this.isMongoConnected) {
         console.log('🔄 Falling back to file storage...');
-        return this.saveGameToFile(game);
+        const success = this.saveGameToFile(game);
+        return success ? game : false;
       }
       
       return false;

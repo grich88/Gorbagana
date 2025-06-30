@@ -402,7 +402,15 @@ export default function SimpleGame() {
             currentPlayerO: game.playerO,
             newPlayerO: updatedGame.playerO,
             playerOCheck: `${!game.playerO} && ${!!updatedGame.playerO}`,
-            statusChanging: game.status !== updatedGame.status
+            statusChanging: game.status !== updatedGame.status,
+            // CRITICAL DEBUGGING: See exactly what's in the game object
+            DEBUGGING_WINNER: updatedGame.winner,
+            DEBUGGING_WINNER_TYPE: typeof updatedGame.winner,
+            DEBUGGING_WINNER_NULL_CHECK: updatedGame.winner === null,
+            DEBUGGING_WINNER_UNDEFINED_CHECK: updatedGame.winner === undefined,
+            DEBUGGING_WINNER_NOT_UNDEFINED: updatedGame.winner !== undefined,
+            DEBUGGING_BOARD: updatedGame.board,
+            DEBUGGING_FULL_GAME: updatedGame
           });
           
           // Update game state first
@@ -433,14 +441,39 @@ export default function SimpleGame() {
             }
           }
 
-          // Handle game completion
-          if (updatedGame.status === 'finished' || updatedGame.status === 'abandoned') {
-            if (updatedGame.winner !== undefined || updatedGame.status === 'abandoned') {
-              await handlePrizeDistribution(updatedGame);
-            }
+          // CRITICAL FIX: Only handle prize distribution for ACTUALLY finished games
+          console.log('🔍 PRIZE DISTRIBUTION CHECK:', {
+            status: updatedGame.status,
+            winner: updatedGame.winner,
+            winnerType: typeof updatedGame.winner,
+            isFinished: updatedGame.status === 'finished',
+            isAbandoned: updatedGame.status === 'abandoned', 
+            hasRealWinner: updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0,
+            shouldCallPrizeDistribution: (updatedGame.status === 'finished' && (updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0)) || updatedGame.status === 'abandoned'
+          });
+
+          // Handle game completion - FIXED LOGIC
+          if (updatedGame.status === 'finished' && (updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0)) {
+            // Only call prize distribution for games that are actually finished with a real winner/tie
+            console.log('✅ CALLING handlePrizeDistribution for finished game with winner:', updatedGame.winner);
+            await handlePrizeDistribution(updatedGame);
+          } else if (updatedGame.status === 'abandoned') {
+            // Handle abandoned games
+            console.log('✅ CALLING handlePrizeDistribution for abandoned game');
+            await handlePrizeDistribution(updatedGame);
           } else if (updatedGame.status === 'playing') {
             // Check for abandoned games during active polling
             await checkForAbandonedGame(updatedGame);
+          } else {
+            console.log('🚫 NOT calling handlePrizeDistribution - game not in final state:', {
+              status: updatedGame.status,
+              winner: updatedGame.winner,
+              reason: updatedGame.status === 'waiting' ? 'Game still waiting for players' : 
+                     updatedGame.status === 'playing' ? 'Game still in progress' :
+                     updatedGame.winner === null ? 'Winner is null (game not finished)' :
+                     updatedGame.winner === undefined ? 'Winner is undefined (game not finished)' :
+                     'Unknown reason'
+            });
           }
         }
       } catch (error) {
@@ -460,9 +493,23 @@ export default function SimpleGame() {
 
   // Handle prize distribution when game ends
   const handlePrizeDistribution = async (finishedGame: Game) => {
-    // CRITICAL VALIDATION: Only run on actually finished/abandoned games
+    console.log('🔥 handlePrizeDistribution called with game:', {
+      id: finishedGame.id,
+      status: finishedGame.status,
+      winner: finishedGame.winner,
+      winnerType: typeof finishedGame.winner,
+      createdAt: finishedGame.createdAt,
+      updatedAt: finishedGame.updatedAt,
+      timeSinceCreation: Date.now() - finishedGame.createdAt,
+      playerX: finishedGame.playerX,
+      playerO: finishedGame.playerO,
+      board: finishedGame.board,
+      boardNotEmpty: finishedGame.board.some(cell => cell !== 0)
+    });
+
+    // CRITICAL VALIDATION #1: Only run on actually finished/abandoned games
     if (finishedGame.status !== 'finished' && finishedGame.status !== 'abandoned') {
-      console.warn('⚠️ handlePrizeDistribution called on non-finished game:', {
+      console.warn('⚠️ BLOCK #1: handlePrizeDistribution called on non-finished game:', {
         status: finishedGame.status,
         winner: finishedGame.winner,
         gameId: finishedGame.id
@@ -470,9 +517,61 @@ export default function SimpleGame() {
       return;
     }
 
-    if (!wallet.publicKey || finishedGame.wager <= 0) {
+    // CRITICAL VALIDATION #2: Don't run on games that were just created (less than 30 seconds old)
+    const timeSinceCreation = Date.now() - finishedGame.createdAt;
+    if (timeSinceCreation < 30000) { // 30 seconds minimum
+      console.warn('⚠️ BLOCK #2: Game too new for prize distribution:', {
+        gameId: finishedGame.id,
+        timeSinceCreation,
+        createdAt: finishedGame.createdAt,
+        now: Date.now()
+      });
       return;
     }
+
+    // CRITICAL VALIDATION #3: Don't run on games where no moves have been made (empty board)
+    const hasMovesBeenMade = finishedGame.board.some(cell => cell !== 0);
+    if (!hasMovesBeenMade && finishedGame.status === 'finished') {
+      console.warn('⚠️ BLOCK #3: No moves made - this is not a real finished game:', {
+        gameId: finishedGame.id,
+        board: finishedGame.board,
+        status: finishedGame.status,
+        winner: finishedGame.winner
+      });
+      return;
+    }
+
+    // CRITICAL VALIDATION #4: Don't run on games with only one player unless abandoned
+    if (!finishedGame.playerO && finishedGame.status === 'finished') {
+      console.warn('⚠️ BLOCK #4: Game marked finished but no second player joined:', {
+        gameId: finishedGame.id,
+        playerX: finishedGame.playerX,
+        playerO: finishedGame.playerO,
+        status: finishedGame.status
+      });
+      return;
+    }
+
+    // CRITICAL VALIDATION #5: Validate winner value for finished games
+    if (finishedGame.status === 'finished' && ![0, 1, 2].includes(finishedGame.winner as number)) {
+      console.warn('⚠️ BLOCK #5: Invalid winner value for finished game:', {
+        gameId: finishedGame.id,
+        winner: finishedGame.winner,
+        winnerType: typeof finishedGame.winner,
+        status: finishedGame.status
+      });
+      return;
+    }
+
+    if (!wallet.publicKey || finishedGame.wager <= 0) {
+      console.warn('⚠️ BLOCK #6: No wallet or invalid wager:', {
+        hasWallet: !!wallet.publicKey,
+        wager: finishedGame.wager
+      });
+      return;
+    }
+
+    console.log('✅ ALL VALIDATIONS PASSED - Proceeding with prize distribution');
 
     try {
       console.log('🏆 Checking prize distribution...');

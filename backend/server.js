@@ -94,30 +94,40 @@ app.post('/api/games', async (req, res) => {
       winner: gameData.winner !== undefined ? gameData.winner : null
     };
     
-    console.log('💾 Game data being saved:', {
-      gameId: game.id,
+    console.log(`🎮 Creating game: ${gameId}`, {
       wager: game.wager,
       escrowAccount: game.escrowAccount,
       hasEscrowAccount: !!game.escrowAccount,
-      playerXDeposit: game.playerXDeposit,
-      boardType: typeof game.board[0],
-      boardSample: game.board.slice(0, 3)
+      // CRITICAL DEBUGGING: See what's being saved
+      DEBUGGING_GAME_BEING_SAVED: game,
+      DEBUGGING_WINNER_FROM_CLIENT: gameData.winner,
+      DEBUGGING_WINNER_AFTER_PROCESSING: game.winner,
+      DEBUGGING_WINNER_TYPE: typeof game.winner,
+      DEBUGGING_STATUS: game.status,
+      DEBUGGING_BOARD: game.board
     });
     
-    const success = await db.saveGame(game);
+    const savedGame = await db.saveGame(game);
     
-    if (success) {
+    console.log(`✅ Game saved successfully: ${gameId}`, {
+      DEBUGGING_SAVED_GAME: savedGame,
+      DEBUGGING_SAVED_WINNER: savedGame.winner,
+      DEBUGGING_SAVED_WINNER_TYPE: typeof savedGame.winner,
+      DEBUGGING_SAVED_STATUS: savedGame.status
+    });
+    
+    if (savedGame) {
       console.log(`✅ Created game: ${gameId} (${game.isPublic ? 'public' : 'private'})`);
-      const savedGame = await db.getGame(gameId);
+      const retrievedGame = await db.getGame(gameId);
       console.log('📖 Retrieved saved game:', {
-        gameId: savedGame.id,
-        wager: savedGame.wager,
-        escrowAccount: savedGame.escrowAccount,
-        hasEscrowAccount: !!savedGame.escrowAccount,
-        boardType: typeof savedGame.board[0],
-        boardSample: savedGame.board.slice(0, 3)
+        gameId: retrievedGame.id,
+        wager: retrievedGame.wager,
+        escrowAccount: retrievedGame.escrowAccount,
+        hasEscrowAccount: !!retrievedGame.escrowAccount,
+        boardType: typeof retrievedGame.board[0],
+        boardSample: retrievedGame.board.slice(0, 3)
       });
-      res.json({ success: true, game: savedGame });
+      res.json({ success: true, game: retrievedGame });
     } else {
       throw new Error('Failed to save game to database');
     }
@@ -155,7 +165,18 @@ app.get('/api/games/:gameId', async (req, res) => {
       winner: game.winner,
       winnerType: typeof game.winner,
       boardType: typeof game.board[0],
-      boardSample: game.board.slice(0, 3)
+      boardSample: game.board.slice(0, 3),
+      // CRITICAL DEBUGGING: Add comprehensive game state info
+      DEBUGGING_FULL_GAME: game,
+      DEBUGGING_WINNER_VALUE: game.winner,
+      DEBUGGING_WINNER_IS_NULL: game.winner === null,
+      DEBUGGING_WINNER_IS_UNDEFINED: game.winner === undefined,
+      DEBUGGING_WINNER_IS_ZERO: game.winner === 0,
+      DEBUGGING_STATUS: game.status,
+      DEBUGGING_BOARD: game.board,
+      DEBUGGING_CREATED_AT: game.createdAt,
+      DEBUGGING_PLAYER_O: game.playerO,
+      DEBUGGING_TIME_SINCE_CREATION: Date.now() - game.createdAt
     });
     res.json({ game });
   } catch (error) {
