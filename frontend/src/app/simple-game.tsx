@@ -948,13 +948,20 @@ export default function SimpleGame() {
       }
 
       const data = await response.json();
+      console.log('🎯 Backend response data:', data);
+      console.log('🎯 Game from backend:', data.game);
+      console.log('🎯 Game ID from backend:', data.game?.id);
+      
       setGame(data.game);
       setGameId(gameId);
       setLoading(false);
 
+      console.log('🚀 About to show success toast. Wager:', wager);
       if (wager > 0) {
+        console.log('🎮 Showing wagered game success message');
         toast.success(`🎮 Game created with ${wager.toFixed(6)} $GOR wager! Share ID: ${gameId}`);
       } else {
+        console.log('🎮 Showing free game success message');
         toast.success(`🎮 Free game created! Share ID: ${gameId}`);
       }
       
