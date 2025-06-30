@@ -102,30 +102,161 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // Prevent wallet extension conflicts
   useEffect(() => {
-    // Give wallets time to initialize
-    const timer = setTimeout(() => {
-      // Check if there are conflicts and warn user
-      if (typeof window !== 'undefined') {
-        const extensions = [];
-        if (window.ethereum) extensions.push('Ethereum-based wallet (MetaMask/etc)');
-        if (window.solana) extensions.push('Solana wallet');
-        if (window.solana?.isBackpack) extensions.push('Backpack (recommended)');
+    // CRITICAL FIX: Prevent multiple wallet conflicts that break game joining
+    const preventWalletConflicts = () => {
+      if (typeof window === 'undefined') return;
+      
+      // Store reference to Backpack before other wallets override it
+      const originalSolana = window.solana;
+      const backpackWallet = window.solana?.isBackpack ? window.solana : null;
+      
+      // AGGRESSIVE FIX: Disable Ethereum wallets for Gorbagana
+      if (window.ethereum) {
+        // CRITICAL FIX: Check if this is Backpack's ethereum interface first
+        const isBackpackEthereum = window.ethereum.isBackpack;
         
-        console.log('🔍 Detected wallet extensions:', extensions);
-        
-        if (extensions.length > 1) {
-          console.warn('⚠️ Multiple wallet extensions detected - this may cause conflicts');
-          console.log('💡 For best experience with Gorbagana, disable other extensions and use only Backpack');
-        }
-        
-        if (window.solana?.isBackpack) {
-          console.log('✅ Backpack detected and ready for Gorbagana');
+        if (isBackpackEthereum) {
+          console.log('✅ Backpack ethereum interface detected - no conflicts to resolve');
         } else {
-          console.warn('⚠️ Backpack wallet not detected - please install Backpack for Gorbagana support');
+          console.log('⚠️ Non-Backpack ethereum wallet detected - potential conflict for escrow transactions');
+          
+          // Don't delete window.ethereum completely as it breaks some extension detection
+          // Instead, create a warning flag
+          (window as any).__ethereumConflictWarning = true;
         }
       }
-    }, 2000);
+      
+      // Ensure Backpack remains accessible even if other wallets override
+      if (backpackWallet) {
+        // Force Backpack to be the primary Solana wallet
+        Object.defineProperty(window, 'solana', {
+          value: backpackWallet,
+          writable: false,
+          configurable: false
+        });
+        console.log('✅ Backpack wallet prioritized for Gorbagana');
+      }
+      
+      // FIXED: Only try to lock ethereum property if it's NOT Backpack's
+      if (window.ethereum && !window.ethereum.isBackpack) {
+        try {
+          // Make window.ethereum non-configurable to prevent conflicts
+          const originalEthereum = window.ethereum;
+          Object.defineProperty(window, 'ethereum', {
+            value: originalEthereum,
+            writable: false,
+            configurable: false
+          });
+          console.log('🔒 Non-Backpack ethereum property locked to prevent conflicts');
+        } catch (error) {
+          console.warn('Could not lock ethereum property:', error);
+          (window as any).__ethereumConflictWarning = true;
+        }
+      } else if (window.ethereum && window.ethereum.isBackpack) {
+        console.log('ℹ️ Backpack ethereum interface detected - no locking needed');
+      }
+    };
+    
+    // Run immediately and after a delay to catch late-loading extensions
+    preventWalletConflicts();
+    const timer = setTimeout(preventWalletConflicts, 3000);
+    
+    // Check for wallet conflicts and provide user guidance
+    const checkWalletConflicts = () => {
+      // DETAILED DEBUGGING: Show exactly what's in window.ethereum
+      console.log('🔍 DETAILED WALLET PROVIDER DETECTION:');
+      console.log('window.ethereum:', window.ethereum);
+      console.log('window.ethereum keys:', window.ethereum ? Object.keys(window.ethereum) : 'none');
+      console.log('window.ethereum.isMetaMask:', window.ethereum?.isMetaMask);
+      console.log('window.ethereum.isBackpack:', window.ethereum?.isBackpack);
+      console.log('window.ethereum.request type:', typeof window.ethereum?.request);
+      console.log('window.solana:', window.solana);
+      console.log('window.solana keys:', window.solana ? Object.keys(window.solana) : 'none');
+      console.log('window.solana.isBackpack:', window.solana?.isBackpack);
+      console.log('window.solana.isPhantom:', window.solana?.isPhantom);
+      
+      const extensions = [];
+      
+      // FIXED: Smart detection that understands Backpack's dual interfaces
+      const hasMetaMask = window.ethereum?.isMetaMask;
+      const hasBackpackEthereum = window.ethereum?.isBackpack;
+      const hasBackpackSolana = window.solana?.isBackpack;
+      const hasPhantom = window.solana?.isPhantom;
+      
+      // CRITICAL: Detect if this is Backpack providing both interfaces
+      const isBackpackProvidingBothInterfaces = hasBackpackEthereum && hasPhantom && !hasBackpackSolana;
+      
+      // More accurate detection - check if wallets are actually active
+      if (window.ethereum && typeof window.ethereum.request === 'function') {
+        if (hasMetaMask) {
+          extensions.push('Active MetaMask wallet');
+        } else if (hasBackpackEthereum) {
+          extensions.push('Backpack (Ethereum interface)');
+        } else {
+          extensions.push('Active Ethereum wallet (unknown)');
+        }
+      }
+      
+      if (window.solana) {
+        if (hasBackpackSolana) {
+          extensions.push('Backpack (Solana interface)');
+        } else if (hasPhantom && !isBackpackProvidingBothInterfaces) {
+          // Only flag as separate Phantom if it's not Backpack's interface
+          extensions.push('Phantom wallet');
+        } else if (isBackpackProvidingBothInterfaces) {
+          extensions.push('Backpack (Solana interface via dual-provider)');
+        } else {
+          extensions.push('Other Solana wallet');
+        }
+      }
+      
+      console.log('🔍 Detected wallet extensions:', extensions);
+      
+      // Only warn about REAL conflicts (not Backpack's legitimate dual interfaces)
+      const hasActiveEthereum = window.ethereum && typeof window.ethereum.request === 'function';
+      const hasAnyBackpack = hasBackpackEthereum || hasBackpackSolana || isBackpackProvidingBothInterfaces;
+      const hasRealPhantom = hasPhantom && !isBackpackProvidingBothInterfaces;
+      
+      console.log('🔍 WALLET STATUS FLAGS:', {
+        hasActiveEthereum,
+        hasMetaMask,
+        hasBackpackEthereum,
+        hasBackpackSolana,
+        hasPhantom,
+        hasAnyBackpack,
+        hasRealPhantom,
+        isBackpackProvidingBothInterfaces,
+        shouldWarn: (hasMetaMask && hasAnyBackpack) || (hasRealPhantom && hasAnyBackpack)
+      });
+      
+      // Only warn about actual conflicts
+      if ((hasMetaMask && hasAnyBackpack) || (hasRealPhantom && hasAnyBackpack)) {
+        console.warn('⚠️ Active wallet conflicts detected - this may cause transaction issues');
+        console.log('💡 For best experience with Gorbagana, disable conflicting wallets and use only Backpack');
+        
+        // Show specific guidance for fixing conflicts
+        if (hasMetaMask && hasAnyBackpack) {
+          console.log('🔧 To fix conflicts: Disable MetaMask extension completely in browser settings');
+        }
+        if (hasRealPhantom && hasAnyBackpack) {
+          console.log('🔧 To fix conflicts: Disable Phantom wallet and use only Backpack');
+        }
+        console.log('🎯 Keep only Backpack enabled for Gorbagana');
+      }
+      
+      if (hasAnyBackpack) {
+        console.log('✅ Backpack detected and ready for Gorbagana');
+        if (isBackpackProvidingBothInterfaces) {
+          console.log('ℹ️ Backpack is providing both Ethereum and Solana interfaces (normal behavior)');
+        }
+      } else if (window.solana) {
+        console.warn('⚠️ Non-Backpack Solana wallet detected - please use Backpack for best Gorbagana support');
+      } else {
+        console.warn('⚠️ No Solana wallet detected - please install Backpack for Gorbagana support');
+      }
+    };
 
+    setTimeout(checkWalletConflicts, 2000);
     return () => clearTimeout(timer);
   }, []);
 

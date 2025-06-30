@@ -59,6 +59,7 @@ export default function SimpleGame() {
   const [showPublicLobby, setShowPublicLobby] = useState(false);
   const [publicGames, setPublicGames] = useState<Game[]>([]);
   const [makeGamePublic, setMakeGamePublic] = useState(true); // New: Public/Private toggle
+  const [walletConflictDetected, setWalletConflictDetected] = useState(false);
 
   // Create Gorbagana connection (backup if useConnection doesn't work)
   const gorbaganaConnection = new Connection('https://rpc.gorbagana.wtf/', 'confirmed');
@@ -97,6 +98,12 @@ export default function SimpleGame() {
       wallet: wallet.wallet?.adapter?.name
     });
 
+    // CRITICAL FIX: Check for wallet conflicts that break transactions
+    if (typeof window !== 'undefined' && (window as any).__ethereumConflictWarning) {
+      console.warn('⚠️ Ethereum wallet conflict detected - this may cause transaction failures');
+      toast.error('🔧 Wallet conflict detected! Please disable MetaMask/Ethereum wallets and use only Backpack for Gorbagana', { duration: 8000 });
+    }
+
     if (!wallet.connected) {
       throw new Error("❌ Wallet is not connected. Please connect your Backpack wallet first.");
     }
@@ -111,6 +118,13 @@ export default function SimpleGame() {
 
     if (wagerAmount <= 0) {
       throw new Error("❌ Wager amount must be greater than 0");
+    }
+
+    // Check if this is Backpack wallet for better error messages
+    const isBackpack = window.solana?.isBackpack;
+    if (!isBackpack) {
+      console.warn('⚠️ Non-Backpack wallet detected - this may cause issues on Gorbagana');
+      toast.warning('⚠️ For best Gorbagana support, please use Backpack wallet', { duration: 5000 });
     }
 
     console.log(`\n=== Creating Escrow Deposit for ${wagerAmount.toFixed(6)} $GOR ===`);
@@ -191,10 +205,14 @@ export default function SimpleGame() {
       } catch (signError: any) {
         console.error('❌ Transaction signing failed:', signError);
         toast.dismiss();
+        
+        // Enhanced error handling for wallet conflicts
         if (signError.message?.includes('User rejected')) {
           throw new Error("❌ Transaction was rejected by user");
-        } else if (signError.message?.includes('ethereum')) {
-          throw new Error("❌ Wallet conflict detected. Disable other wallet extensions and use only Backpack.");
+        } else if (signError.message?.includes('ethereum') || signError.message?.includes('evmAsk')) {
+          throw new Error("❌ Wallet conflict detected! Please disable MetaMask/Ethereum wallets and use only Backpack for Gorbagana.");
+        } else if (signError.message?.includes('Cannot redefine property')) {
+          throw new Error("❌ Multiple wallet extensions are conflicting. Please disable all wallets except Backpack and refresh the page.");
         } else {
           throw new Error(`❌ Signing failed: ${signError.message}`);
         }
@@ -252,8 +270,14 @@ export default function SimpleGame() {
     }
   };
 
-  // Test backend connectivity
+  // Test backend connectivity (browser only)
   useEffect(() => {
+    // CRITICAL FIX: Only test backend in browser, not during build
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Build environment - skipping backend test');
+      return;
+    }
+    
     async function testBackend() {
       try {
         const response = await fetch(`${API_BASE_URL}/health`);
@@ -271,19 +295,40 @@ export default function SimpleGame() {
         toast.error('⚠️ Cannot reach game servers');
       }
     }
-    testBackend();
+    
+    // Small delay to ensure browser environment is fully ready
+    const timer = setTimeout(testBackend, 100);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Check for wallet extension conflicts
+  // Check for wallet extension conflicts (smart detection)
   useEffect(() => {
     if (wallet.connected && typeof window !== 'undefined') {
-      // Check for problematic wallet extensions
-      if (window.ethereum && !window.solana?.isBackpack) {
-        console.warn('⚠️ Ethereum wallet detected - this may interfere with Gorbagana transactions');
-        toast('⚠️ Multiple wallets detected. For best results, disable MetaMask and use only Backpack.', {
+      // FIXED: Use smart conflict detection that understands Backpack's dual interfaces
+      const hasMetaMask = !!(window.ethereum && window.ethereum.isMetaMask);
+      const hasBackpackEthereum = !!(window.ethereum && window.ethereum.isBackpack);
+      const hasBackpackSolana = !!(window.solana && window.solana.isBackpack);
+      const hasPhantom = !!(window.solana && window.solana.isPhantom);
+      
+      // Detect if this is Backpack providing both interfaces legitimately
+      const isBackpackProvidingBothInterfaces = hasBackpackEthereum && hasPhantom && !hasBackpackSolana;
+      const hasAnyBackpack = hasBackpackEthereum || hasBackpackSolana || isBackpackProvidingBothInterfaces;
+      
+      // Only warn about REAL conflicts
+      if (hasMetaMask && hasAnyBackpack) {
+        console.warn('⚠️ MetaMask detected alongside Backpack - this may cause transaction conflicts');
+        toast('⚠️ MetaMask detected. For best results, disable MetaMask and use only Backpack.', {
           duration: 8000,
           icon: '⚠️'
         });
+      } else if (hasPhantom && hasBackpackEthereum && !isBackpackProvidingBothInterfaces) {
+        console.warn('⚠️ Multiple Solana wallets detected - this may cause conflicts');
+        toast('⚠️ Multiple Solana wallets detected. For best results, disable Phantom and use only Backpack.', {
+          duration: 8000,
+          icon: '⚠️'
+        });
+      } else if (isBackpackProvidingBothInterfaces) {
+        console.log('ℹ️ Backpack is providing both Ethereum and Solana interfaces (normal behavior)');
       }
     }
   }, [wallet.connected]);
@@ -778,12 +823,10 @@ export default function SimpleGame() {
     }
   };
 
-  // Create a new game (with real escrow deposit and public option)
+  // Create a new game (with real $GOR escrow)
   const createGame = async () => {
-    console.log('🎮 Starting game creation...');
-    
     if (!wallet.connected || !wallet.publicKey) {
-      toast.error("Please connect your wallet first!");
+      toast.error("Please connect your Backpack wallet first!");
       return;
     }
 
@@ -792,81 +835,86 @@ export default function SimpleGame() {
       return;
     }
 
-    const wagerAmount = parseFloat(wagerInput) || 0;
-    console.log(`💰 Wager amount: ${wagerAmount} $GOR`);
-    
-    if (wagerAmount > gorBalance) {
-      toast.error(`Insufficient $GOR balance! You have ${gorBalance.toFixed(4)} $GOR`);
+    const wager = parseFloat(wagerInput) || 0;
+    if (wager > gorBalance) {
+      toast.error(`Insufficient $GOR! You have ${gorBalance.toFixed(4)} $GOR, need ${wager.toFixed(4)} $GOR`);
       return;
     }
 
-    // Check for wallet conflicts before starting
-    if (typeof window !== 'undefined' && window.ethereum && wagerAmount > 0) {
-      console.warn('⚠️ Ethereum wallet detected - potential conflict for escrow transactions');
+    // CRITICAL FIX: Check wallet health before creating games
+    const walletHealth = checkWalletHealth();
+    if (!walletHealth.healthy) {
+      console.warn('⚠️ Wallet conflicts detected before creating game:', walletHealth);
+      showWalletConflictDialog(walletHealth);
+      setWalletConflictDetected(true);
+      
+      // Show warning but allow creation of free games
+      if (wager > 0) {
+        const proceed = confirm('⚠️ Wallet conflicts detected. Creating wagered games may fail. Continue anyway?\n\nFor best results, fix wallet conflicts first.');
+        if (!proceed) {
+          return;
+        }
+      }
+    }
+
+    console.log('🎮 Starting game creation...');
+    console.log('💰 Wager amount:', wager, '$GOR');
+    
+    if (window.ethereum && wager > 0) {
+      console.log('⚠️ Ethereum wallet detected - potential conflict for escrow transactions');
     }
 
     setLoading(true);
-    
+
     try {
-      const newGameId = Math.floor(1000 + Math.random() * 9000).toString();
-      console.log(`🆔 Generated game ID: ${newGameId}`);
-      
+      // Generate unique game ID
+      const gameId = Math.floor(Math.random() * 10000).toString();
+      console.log('🆔 Generated game ID:', gameId);
+
       let escrowData = null;
       
-      // Create escrow deposit if wager > 0
-      if (wagerAmount > 0) {
-        console.log(`🔐 Creating escrow deposit for ${wagerAmount} $GOR...`);
-        toast.loading('🔐 Creating escrow deposit...', { duration: 8000 });
+      // Create escrow deposit for wagered games
+      if (wager > 0) {
+        console.log('🔐 Creating escrow deposit for', wager, '$GOR...');
         
-        try {
-          escrowData = await createEscrowDeposit(wagerAmount, newGameId, true); // Creator
-          toast.dismiss();
-          console.log('✅ Escrow deposit created successfully:', escrowData);
-        } catch (escrowError: any) {
-          toast.dismiss();
-          console.error('❌ Escrow creation failed:', escrowError);
-          setLoading(false);
-          
-          // Provide specific error messages
-          if (escrowError.message.includes('ethereum') || escrowError.message.includes('redefine')) {
-            toast.error('❌ Wallet conflict detected! Please disable other wallet extensions and refresh the page.');
-          } else if (escrowError.message.includes('rejected')) {
-            toast.error('❌ Transaction was cancelled by user');
-          } else {
-            toast.error(`❌ Escrow creation failed: ${escrowError.message}`);
-          }
-          return;
+        // Triple check wallet health before critical transaction
+        const preTransactionHealth = checkWalletHealth();
+        if (!preTransactionHealth.healthy) {
+          console.warn('⚠️ Wallet health check failed before escrow creation');
+          toast.error('⚠️ Wallet conflicts detected! Transaction may fail. Please fix wallet conflicts and try again.');
+          throw new Error('Wallet conflicts prevent secure transaction');
         }
-      } else {
-        console.log('💳 Free game - no escrow needed');
+        
+        escrowData = await createEscrowDeposit(wager, gameId, true); // Player X (creator)
+        console.log('✅ Escrow deposit created successfully:', escrowData);
       }
-      
+
+      // Create the game on backend
       const newGame: Game = {
-        id: newGameId,
+        id: gameId,
         playerX: wallet.publicKey.toString(),
         playerO: undefined,
-        board: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        board: new Array(9).fill(0),
         currentTurn: 1,
-        status: "waiting",
-        winner: null,
+        status: 'waiting',
+        winner: undefined,
         createdAt: Date.now(),
-        wager: wagerAmount,
+        wager: wager,
         isPublic: makeGamePublic,
-        creatorName: `Player ${wallet.publicKey.toString().slice(0, 4)}...${wallet.publicKey.toString().slice(-4)}`,
+        creatorName: 'Player 1',
         escrowAccount: escrowData?.escrowAccount,
         txSignature: escrowData?.txSignature,
-        playerXDeposit: escrowData?.txSignature
+        playerXDeposit: escrowData?.txSignature,
+        updatedAt: Date.now()
       };
 
       console.log('💾 Saving game to backend:', {
-        gameId: newGame.id,
+        id: newGame.id,
         wager: newGame.wager,
-        escrowAccount: newGame.escrowAccount,
-        hasEscrowAccount: !!newGame.escrowAccount,
-        isPublic: newGame.isPublic
+        isPublic: newGame.isPublic,
+        hasEscrow: !!newGame.escrowAccount
       });
 
-      // Save to backend
       const response = await fetch(`${API_BASE_URL}/api/games`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -874,27 +922,42 @@ export default function SimpleGame() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create game on server');
+        throw new Error('Failed to create game on backend');
       }
 
       const data = await response.json();
       setGame(data.game);
-      setGameId(newGameId);
+      setGameId(gameId);
       setLoading(false);
-      
-      if (wagerAmount > 0) {
-        toast.success(`🔒 ${makeGamePublic ? 'Public' : 'Private'} game created with ${wagerAmount.toFixed(6)} $GOR wager! ${makeGamePublic ? 'Available in public lobby.' : `Share ID: ${newGameId}`}`);
+
+      if (wager > 0) {
+        toast.success(`🎮 Game created with ${wager.toFixed(6)} $GOR wager! Share ID: ${gameId}`);
       } else {
-        toast.success(`🗑️ Free ${makeGamePublic ? 'public' : 'private'} game created! ${makeGamePublic ? 'Available in public lobby.' : `Share ID: ${newGameId}`}`);
+        toast.success(`🎮 Free game created! Share ID: ${gameId}`);
       }
       
+      // Clear wallet conflict flag on successful creation
+      setWalletConflictDetected(false);
+
+      // Start polling for opponent
+      if (!isPolling) {
+        setIsPolling(true);
+      }
+
       // Refresh balance after transaction
       setTimeout(fetchGorBalance, 2000);
-      
+
     } catch (error) {
       setLoading(false);
       console.error('❌ Failed to create game:', error);
-      toast.error("Failed to create game: " + (error as Error).message);
+      
+      // Enhanced error messages for wallet conflicts
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('Wallet conflict') || errorMessage.includes('wallet conflicts')) {
+        toast.error("🔧 Wallet conflicts prevented game creation! Please disable MetaMask/Ethereum wallets and use only Backpack.", { duration: 8000 });
+      } else {
+        toast.error("Failed to create game: " + errorMessage);
+      }
     }
   };
 
@@ -908,6 +971,20 @@ export default function SimpleGame() {
     if (!isConnected) {
       toast.error("Game servers are offline!");
       return;
+    }
+
+    // CRITICAL FIX: Check wallet health before joining to prevent failures
+    const walletHealth = checkWalletHealth();
+    if (!walletHealth.healthy) {
+      console.warn('⚠️ Wallet conflicts detected before joining game:', walletHealth);
+      showWalletConflictDialog(walletHealth);
+      setWalletConflictDetected(true);
+      
+      // Still allow joining but with warning
+      const proceed = confirm('⚠️ Wallet conflicts detected. Joining may fail. Continue anyway?\n\nFor best results, fix wallet conflicts first.');
+      if (!proceed) {
+        return;
+      }
     }
 
     setLoading(true);
@@ -952,6 +1029,16 @@ export default function SimpleGame() {
       // Create matching escrow deposit if wager > 0
       if (existingGame.wager > 0) {
         toast.loading('🔐 Creating matching escrow deposit...', { duration: 5000 });
+        
+        // Double check wallet health before critical transaction
+        const preTransactionHealth = checkWalletHealth();
+        if (!preTransactionHealth.healthy) {
+          console.warn('⚠️ Wallet health check failed before escrow deposit');
+          toast.dismiss();
+          toast.error('⚠️ Wallet conflicts detected! Transaction may fail. Please fix wallet conflicts and try again.');
+          throw new Error('Wallet conflicts prevent secure transaction');
+        }
+        
         escrowData = await createEscrowDeposit(existingGame.wager, gameId, false, existingGame.escrowAccount); // Player O
         toast.dismiss();
         console.log('✅ Matching escrow deposit created:', escrowData);
@@ -983,13 +1070,23 @@ export default function SimpleGame() {
         toast.success("🎮 Successfully joined free game!");
       }
       
+      // Clear wallet conflict flag on successful join
+      setWalletConflictDetected(false);
+      
       // Refresh balance after transaction
       setTimeout(fetchGorBalance, 2000);
       
     } catch (error) {
       setLoading(false);
       console.error('❌ Failed to join game:', error);
-      toast.error("Failed to join game: " + (error as Error).message);
+      
+      // Enhanced error messages for wallet conflicts
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('Wallet conflict') || errorMessage.includes('wallet conflicts')) {
+        toast.error("🔧 Wallet conflicts prevented joining! Please disable MetaMask/Ethereum wallets and use only Backpack.", { duration: 8000 });
+      } else {
+        toast.error("Failed to join game: " + errorMessage);
+      }
     }
   };
 
@@ -1330,6 +1427,129 @@ export default function SimpleGame() {
     }
   };
 
+  // CRITICAL FIX: Wallet health check to prevent transaction failures
+  const checkWalletHealth = (): { healthy: boolean; issues: string[]; suggestions: string[] } => {
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+    
+    if (typeof window === 'undefined') {
+      return { healthy: true, issues: [], suggestions: [] };
+    }
+    
+    // DETAILED DEBUGGING: Log exactly what's being detected
+    console.log('🔍 DETAILED WALLET DETECTION:', {
+      'window.ethereum exists': !!window.ethereum,
+      'window.ethereum type': typeof window.ethereum,
+      'window.ethereum.request exists': !!(window.ethereum && typeof window.ethereum.request === 'function'),
+      'window.ethereum.isMetaMask': !!(window.ethereum && window.ethereum.isMetaMask),
+      'window.ethereum.isBackpack': !!(window.ethereum && window.ethereum.isBackpack),
+      'window.ethereum object': window.ethereum ? Object.keys(window.ethereum).slice(0, 10) : null,
+      'window.solana exists': !!window.solana,
+      'window.solana.isBackpack': !!(window.solana && window.solana.isBackpack),
+      'window.solana.isPhantom': !!(window.solana && window.solana.isPhantom),
+      'window.solana object': window.solana ? Object.keys(window.solana).slice(0, 10) : null,
+    });
+    
+    // FIXED: Smart wallet detection that understands Backpack provides both interfaces
+    const hasEthereum = !!window.ethereum;
+    const hasSolana = !!window.solana;
+    const hasBackpackEthereum = !!(window.ethereum && window.ethereum.isBackpack);
+    const hasBackpackSolana = !!(window.solana && window.solana.isBackpack);
+    const hasPhantom = !!(window.solana && window.solana.isPhantom);
+    const hasMetaMask = !!(window.ethereum && window.ethereum.isMetaMask);
+    const hasConflictWarning = !!(window as any).__ethereumConflictWarning;
+    
+    // CRITICAL FIX: Detect if this is actually just Backpack providing both interfaces
+    // Backpack sometimes reports its Solana interface as Phantom incorrectly
+    const isBackpackProvidingBothInterfaces = hasBackpackEthereum && hasPhantom && !hasBackpackSolana;
+    
+    console.log('🔍 WALLET FLAGS:', {
+      hasEthereum,
+      hasSolana,
+      hasBackpackEthereum,
+      hasBackpackSolana,
+      hasPhantom,
+      hasMetaMask,
+      hasConflictWarning,
+      isBackpackProvidingBothInterfaces
+    });
+    
+    // Check for REAL conflicts (not Backpack's dual interfaces)
+    if (hasMetaMask && (hasBackpackEthereum || hasBackpackSolana)) {
+      issues.push('Active MetaMask detected alongside Backpack');
+      suggestions.push('Disable MetaMask extension completely in browser settings');
+    }
+    
+    // Only flag as conflict if it's NOT Backpack providing both interfaces
+    if (hasPhantom && hasBackpackEthereum && !isBackpackProvidingBothInterfaces) {
+      issues.push('Multiple Solana wallets active (Phantom + Backpack)');
+      suggestions.push('Disable Phantom wallet to prevent conflicts');
+    }
+    
+    // FIXED: Only flag conflict warning if it's NOT just Backpack's ethereum interface
+    if (hasConflictWarning && !hasBackpackEthereum) {
+      issues.push('Ethereum wallet conflict detected');
+      suggestions.push('Disable all Ethereum-based wallets (MetaMask, etc)');
+    } else if (hasConflictWarning && hasBackpackEthereum) {
+      console.log('ℹ️ Conflict warning present but caused by Backpack ethereum interface (not a real conflict)');
+    }
+    
+    // Check if we have Backpack (either interface)
+    const hasAnyBackpack = hasBackpackEthereum || hasBackpackSolana || isBackpackProvidingBothInterfaces;
+    
+    if (!hasAnyBackpack) {
+      issues.push('Backpack wallet not detected');
+      suggestions.push('Install and enable Backpack wallet extension');
+    }
+    
+    // Additional check: if wallet is connected but not through Backpack
+    if (wallet.connected && wallet.wallet && !wallet.wallet.adapter.name.includes('Backpack')) {
+      issues.push(`Connected through ${wallet.wallet.adapter.name} instead of Backpack`);
+      suggestions.push('Disconnect and reconnect using Backpack wallet');
+    }
+    
+    const healthy = issues.length === 0;
+    
+    // Enhanced debugging to help troubleshoot false positives
+    console.log('🔍 Wallet Health Check Results:', {
+      hasEthereum,
+      hasSolana,
+      hasBackpackEthereum,
+      hasBackpackSolana,
+      hasPhantom,
+      hasMetaMask,
+      isBackpackProvidingBothInterfaces,
+      hasAnyBackpack,
+      walletConnected: wallet.connected,
+      walletName: wallet.wallet?.adapter?.name,
+      issues: issues,
+      issuesCount: issues.length,
+      healthy,
+      conflictWarning: hasConflictWarning,
+      // DETAILED ISSUE BREAKDOWN
+      detailedIssueAnalysis: {
+        'MetaMask + Backpack conflict': hasMetaMask && (hasBackpackEthereum || hasBackpackSolana),
+        'Phantom + Backpack conflict (not dual interface)': hasPhantom && hasBackpackEthereum && !isBackpackProvidingBothInterfaces,
+        'Conflict warning flag': hasConflictWarning,
+        'Backpack not detected': !hasAnyBackpack,
+        'Wrong wallet adapter': wallet.connected && wallet.wallet && !wallet.wallet.adapter.name.includes('Backpack')
+      }
+    });
+    
+    return { healthy, issues, suggestions };
+  };
+
+  // Show wallet conflict dialog
+  const showWalletConflictDialog = (health: ReturnType<typeof checkWalletHealth>) => {
+    const issuesText = health.issues.join('\n• ');
+    const suggestionsText = health.suggestions.join('\n• ');
+    
+    toast.error(`🔧 Wallet Issues Detected:\n• ${issuesText}\n\n💡 Solutions:\n• ${suggestionsText}\n\nRefresh page after fixing.`, {
+      duration: 12000,
+      style: { whiteSpace: 'pre-line' }
+    });
+  };
+
   return (
     <div className="game-container">
       <div className="game-header">
@@ -1408,6 +1628,64 @@ export default function SimpleGame() {
                 </div>
               </div>
             </div>
+
+            {/* Wallet Health Status */}
+            {walletConflictDetected && (
+              <div className="card" style={{
+                marginBottom: '1rem',
+                background: 'rgba(251, 191, 36, 0.1)',
+                border: '1px solid rgba(251, 191, 36, 0.3)'
+              }}>
+                <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem'}}>
+                  <span style={{fontSize: '1.2rem'}}>⚠️</span>
+                  <span style={{color: '#fbbf24', fontWeight: 'bold'}}>Wallet Conflicts Detected</span>
+                </div>
+                <p style={{color: '#fcd34d', fontSize: '0.9rem', margin: '0 0 1rem 0'}}>
+                  Multiple wallet extensions may cause transaction failures when joining games
+                </p>
+                <button 
+                  onClick={() => {
+                    const health = checkWalletHealth();
+                    showWalletConflictDialog(health);
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%', 
+                    background: '#f59e0b', 
+                    borderColor: '#f59e0b', 
+                    color: 'white',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  🔧 Fix Wallet Issues
+                </button>
+              </div>
+            )}
+            
+            {/* Auto-check wallet health when connected */}
+            {(() => {
+              if (typeof window !== 'undefined' && wallet.connected) {
+                const health = checkWalletHealth();
+                if (!health.healthy && !walletConflictDetected) {
+                  // FIXED: Only set conflict detected flag for REAL issues
+                  // Don't trigger for Backpack's legitimate dual interfaces
+                  const hasRealConflicts = health.issues.some(issue => 
+                    issue.includes('Active MetaMask') || 
+                    issue.includes('Multiple Solana wallets') ||
+                    issue.includes('Connected through') ||
+                    (issue.includes('conflict') && !issue.includes('Backpack providing both'))
+                  );
+                  
+                  if (hasRealConflicts) {
+                    console.log('🚨 REAL wallet conflicts detected, showing warning:', health.issues);
+                    setTimeout(() => setWalletConflictDetected(true), 1000);
+                  } else {
+                    console.log('ℹ️ Wallet health issues detected but no real conflicts (likely Backpack dual interfaces):', health.issues);
+                  }
+                }
+              }
+              return null;
+            })()}
 
             {!game ? (
               <div className="card">

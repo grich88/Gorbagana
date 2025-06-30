@@ -72,8 +72,14 @@ function ComplexHome() {
   const [connectionStatus, setConnectionStatus] = useState<string>("disconnected");
   const [backendStatus, setBackendStatus] = useState<{available: boolean, url?: string}>({available: false});
 
-  // Check backend connection status
+  // Check backend connection status (browser only)
   useEffect(() => {
+    // CRITICAL FIX: Only check backend in browser, not during build
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Build environment - skipping backend connection check');
+      return;
+    }
+    
     const checkBackend = async () => {
       const status = gameStorage.getConnectionStatus();
       setBackendStatus(status);
@@ -88,7 +94,9 @@ function ComplexHome() {
       }
     };
     
-    checkBackend();
+    // Small delay to ensure browser environment is fully ready
+    const timer = setTimeout(checkBackend, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   // Fix modal scroll issues

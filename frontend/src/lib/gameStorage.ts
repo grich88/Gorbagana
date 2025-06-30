@@ -66,22 +66,40 @@ class GameStorage {
   
   private isBackendAvailable = false
   private initializationPromise: Promise<boolean> | null = null
+  private hasInitialized = false
   
   constructor() {
-    // Don't await in constructor - store promise for later
-    this.initializationPromise = this.checkBackendConnection()
+    // DON'T initialize during build - only in browser
+    // This prevents network calls during Next.js static generation
   }
   
-  // Wait for initialization if needed
+  // Wait for initialization if needed (browser only)
   private async waitForInitialization(): Promise<void> {
+    // Only initialize in browser environment
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Build environment detected - skipping backend connection')
+      return
+    }
+    
+    if (!this.hasInitialized && !this.initializationPromise) {
+      this.initializationPromise = this.checkBackendConnection()
+    }
+    
     if (this.initializationPromise) {
       await this.initializationPromise
       this.initializationPromise = null
+      this.hasInitialized = true
     }
   }
   
-  // Check if backend is available
+  // Check if backend is available (browser only)
   private async checkBackendConnection(): Promise<boolean> {
+    // CRITICAL FIX: Only run in browser, never during build
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Server-side detected - skipping backend connection check')
+      return false
+    }
+    
     try {
       console.log(`🔍 Testing backend connection: ${API_BASE_URL}/health`)
       
@@ -95,14 +113,12 @@ class GameStorage {
       
       this.isBackendAvailable = response.ok
       
-      // Only use localStorage in browser environment
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(this.CONNECTION_STATUS_KEY, JSON.stringify({
-          available: this.isBackendAvailable,
-          lastChecked: Date.now(),
-          url: API_BASE_URL
-        }))
-      }
+      // Store connection status in localStorage
+      localStorage.setItem(this.CONNECTION_STATUS_KEY, JSON.stringify({
+        available: this.isBackendAvailable,
+        lastChecked: Date.now(),
+        url: API_BASE_URL
+      }))
       
       if (this.isBackendAvailable) {
         console.log('✅ Backend API connected - cross-device games enabled')
@@ -483,25 +499,41 @@ class GameStorage {
   
   // Get backend connection status
   getConnectionStatus(): { available: boolean; lastChecked: number; url?: string } {
-    try {
-      // Only access localStorage in browser environment
-      if (typeof window !== 'undefined') {
-        const status = localStorage.getItem(this.CONNECTION_STATUS_KEY)
-        if (status) {
-          return JSON.parse(status)
-        }
+    // CRITICAL FIX: Safe for build time - only access localStorage in browser
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Build environment - returning default connection status')
+      return {
+        available: false,
+        lastChecked: 0,
+        url: API_BASE_URL
       }
-    } catch (error) {
-      console.error('Failed to get connection status:', error)
     }
     
-    return { available: false, lastChecked: 0, url: API_BASE_URL }
+    try {
+      const stored = localStorage.getItem(this.CONNECTION_STATUS_KEY)
+      if (stored) {
+        return JSON.parse(stored)
+      }
+    } catch (error) {
+      console.warn('Failed to read connection status from localStorage:', error)
+    }
+    
+    return {
+      available: this.isBackendAvailable,
+      lastChecked: Date.now(),
+      url: API_BASE_URL
+    }
   }
   
-  // Force reconnection test
+  // Test backend connection manually
   async testConnection(): Promise<boolean> {
-    console.log('🔄 Force testing backend connection...')
-    return await this.checkBackendConnection()
+    // CRITICAL FIX: Only test connections in browser, not during build
+    if (typeof window === 'undefined') {
+      console.log('🏗️ Build environment - skipping connection test')
+      return false
+    }
+    
+    return this.checkBackendConnection()
   }
 
   // Generate shareable game data as base64 string
