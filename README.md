@@ -1,181 +1,301 @@
-# 🗑️ Gorbagana Trash Tac Toe
+# 🗑️ Trash-Tac-Toe ♻️ | Gorbagana Blockchain Gaming
 
-**A multiplayer tic-tac-toe game with real $GOR token wagering on the Gorbagana blockchain network.**
+**A revolutionary multiplayer tic-tac-toe game on the Gorbagana blockchain featuring real $GOR token wagers!**
+
+![Trash-Tac-Toe Banner](https://img.shields.io/badge/Gorbagana-Blockchain%20Gaming-green) ![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen) ![License](https://img.shields.io/badge/License-MIT-blue)
+
+## 🌟 Features
+
+### 🎮 Core Gameplay
+- **Real-time Multiplayer**: Cross-device gameplay with automatic synchronization
+- **Blockchain Integration**: Real $GOR token wagers on Gorbagana network
+- **Smart Escrow System**: Automatic prize distribution with secure escrow accounts
+- **Two Game Modes**: Free games and wagered games with real token rewards
+
+### 💰 Token Economy
+- **$GOR Token Wagers**: Bet real Gorbagana tokens on game outcomes
+- **Automatic Prize Distribution**: Smart contract handles prize payouts
+- **Winner Evolution**: "You won and have evolved to a dumptruck!" 🚛
+- **Loser Message**: "🗑️ You're such trash, recycle yourself and try again! - Gorbagio"
+
+### 🔧 Technical Features
+- **Cross-Device Gaming**: Share game links or IDs to play with friends on any device
+- **Public Game Lobby**: Join random public games with other players
+- **Automatic Game Cleanup**: Completed games are automatically removed from storage
+- **Periodic Maintenance**: Hourly cleanup of idle and abandoned games
+- **Backpack Wallet Integration**: Optimized for Gorbagana's preferred wallet
+- **Real-time Sync**: 5-second polling for instant game state updates
+
+### 🛡️ Security & Reliability
+- **Conflict Detection**: Automatic wallet extension conflict resolution
+- **Abandoned Game Handling**: Refunds for inactive games after timeout
+- **Transaction Retry Logic**: Robust blockchain transaction handling
+- **Fee-Aware Transfers**: Smart fee calculation for reliable transactions
 
 ## 🚀 Live Demo
 
-- **Frontend**: https://gorbagana-trash-tac-toe.netlify.app
-- **Backend API**: https://gorbagana-trash-tac-toe-backend.onrender.com
-- **Network**: Gorbagana Testnet
-- **Explorer**: https://gorexplorer.net/
+**Production App**: [https://gorbagana-trash-tac-toe.netlify.app](https://gorbagana-trash-tac-toe.netlify.app)
 
-## ✅ Confirmed Working Features
+## 🎯 Game Rules
 
-### 💰 Real Money Transfers (VERIFIED)
-- ✅ **Real $GOR deposits** to shared escrow accounts
-- ✅ **Automatic prize distribution** to winners
-- ✅ **Live balance updates** after transactions
-- ✅ **Blockchain confirmation** with explorer links
-- ✅ **Transaction signatures** verified on Gorbagana network
+### Objective
+Battle as **🗑️ Trash Cans** vs **♻️ Recycling Bins** in the ultimate environmental showdown!
 
-### 🎮 Cross-Device Gaming
-- ✅ **MongoDB Atlas** cloud database persistence
-- ✅ **Real-time game synchronization** across devices
-- ✅ **5-second polling** for instant move updates
-- ✅ **Public game lobby** with wagered games
+### How to Play
+1. **Connect Wallet**: Use Backpack wallet for optimal Gorbagana experience
+2. **Create Game**: Set your wager amount (0.001+ $GOR) or play for free
+3. **Share Game**: Send game ID or share link with opponent
+4. **Play**: Take turns placing your symbol (Trash 🗑️ or Recycle ♻️)
+5. **Win**: Get three in a row and claim the prize!
 
-### 🔗 Blockchain Integration
-- ✅ **Official Gorbagana RPC**: `https://rpc.gorbagana.wtf/`
-- ✅ **Backpack wallet** integration
-- ✅ **Live $GOR balance** detection
-- ✅ **Transaction confirmation** with polling
-- ✅ **Explorer integration** for all transactions
+### Player Roles
+- **Player X (Trash Cans 🗑️)**: Always goes first, represents chaos and disorder
+- **Player O (Recycling Bins ♻️)**: Second player, represents order and environmental responsibility
 
-## 🎯 How It Works
+### Winning Conditions
+- **Three in a Row**: Horizontal, vertical, or diagonal
+- **Winner Takes All**: Gets both players' wagers (minus network fees)
+- **Tie Game**: Both players get their wagers refunded
+- **Abandoned Game**: Automatic refunds after inactivity timeout
 
-1. **Connect Wallet**: Use Backpack wallet with Gorbagana network
-2. **Create Game**: Set wager amount (0.001-1.0 $GOR) 
-3. **Escrow Deposit**: Automatic secure deposit to shared escrow account
-4. **Share Game ID**: Send 4-digit code to opponent
-5. **Opponent Joins**: Matching deposit required for wagered games
-6. **Play Game**: Cross-device real-time tic-tac-toe
-7. **Win Prize**: Automatic 2x wager transfer to winner
+## 💻 Technical Setup
 
-## 💡 Game Rules
+### Prerequisites
+- **Node.js** (v18+)
+- **npm** or **yarn**
+- **Backpack Wallet** (recommended for Gorbagana)
+- **$GOR Tokens** (for wagered games)
 
-- **Trash Cans (🗑️)** vs **Recycling Bins (♻️)**
-- **Winner takes all**: 2x the wager amount
-- **Tie games**: Both players get deposits back
-- **Free games**: No wager required (0 $GOR)
+### Frontend Installation
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/gorbagana-trash-tac-toe.git
+cd gorbagana-trash-tac-toe
 
-## 🛠️ Technical Architecture
+# Install frontend dependencies
+cd frontend
+npm install
+
+# Start development server
+npm run dev
+```
+
+### Backend Installation
+```bash
+# Install backend dependencies  
+cd backend
+npm install
+
+# Set up environment variables
+cp env.example .env
+# Edit .env with your MongoDB connection string
+
+# Start backend server
+npm start
+```
+
+### Environment Variables
+
+**Frontend (.env.local)**:
+```bash
+NEXT_PUBLIC_API_URL=https://gorbagana-trash-tac-toe-backend.onrender.com
+```
+
+**Backend (.env)**:
+```bash
+MONGODB_URI=your_mongodb_connection_string
+PORT=3002
+CORS_ORIGIN=https://gorbagana-trash-tac-toe.netlify.app
+```
+
+## 🌐 Network Configuration
+
+### Gorbagana Testnet
+- **RPC Endpoint**: `https://rpc.gorbagana.wtf/`
+- **Explorer**: [https://gorexplorer.net](https://gorexplorer.net)
+- **Chain ID**: Gorbagana Testnet
+- **Native Token**: $GOR
+
+### Wallet Setup
+1. Install [Backpack Wallet](https://backpack.app)
+2. Create or import wallet
+3. Connect to Gorbagana network
+4. Get $GOR tokens from faucet or DEX
+
+## 🏗️ Architecture
 
 ### Frontend (Next.js)
 - **Framework**: Next.js 14 with TypeScript
-- **Wallet**: Backpack integration with Solana Web3.js
-- **UI**: Responsive design with mobile optimization
-- **Deployment**: Netlify with continuous deployment
+- **Styling**: Tailwind CSS with custom game themes
+- **Wallet Integration**: Solana Wallet Adapter with Backpack support
+- **State Management**: React hooks with persistent storage
+- **Deployment**: Netlify with automatic deployments
 
-### Backend (Express.js)
+### Backend (Node.js)
+- **Framework**: Express.js with TypeScript
+- **Database**: MongoDB for game state persistence
 - **API**: RESTful endpoints for game management
-- **Database**: MongoDB Atlas cloud database
-- **CORS**: Enabled for cross-origin requests
-- **Balance Proxy**: Server-side RPC calls to bypass CORS
+- **Deployment**: Render with auto-scaling
 
-### Blockchain
-- **Network**: Gorbagana Testnet
-- **Token**: $GOR (native token)
-- **RPC**: Official endpoint `https://rpc.gorbagana.wtf/`
-- **Escrow**: Shared keypair accounts for secure deposits
+### Blockchain Integration
+- **Network**: Gorbagana Testnet (Solana-compatible)
+- **Token**: $GOR (native Gorbagana token)
+- **Wallet**: Backpack (official Gorbagana wallet)
+- **Transactions**: Direct token transfers with escrow system
 
-## 🚀 Local Development
+## 📡 API Endpoints
 
-### Prerequisites
-- Node.js 18+
-- Backpack wallet extension
-- $GOR tokens on Gorbagana testnet
+### Game Management
+```typescript
+POST   /api/games              // Create new game
+GET    /api/games/:id          // Get game by ID  
+PUT    /api/games/:id/join     // Join existing game
+POST   /api/games/:id/move     // Make a move
+PUT    /api/games/:id/abandon  // Abandon game
+GET    /api/games/public       // List public games
+```
 
-### Backend Setup
+### System
+```typescript
+GET    /health                 // Health check
+GET    /api/status             // System status
+```
+
+## 🎨 Game Themes
+
+### Visual Design
+- **Gorbagana-inspired**: Dark theme with green accents
+- **Animated Icons**: Bouncing trash cans and recycling bins
+- **Winning Effects**: Victory pulses and celebration animations
+- **Responsive Design**: Mobile-first approach with touch optimization
+
+### Custom Styling
+- **Trash Cells**: Green glow with bounce animation
+- **Recycle Cells**: Blue glow with environmental vibes  
+- **Winning Cells**: Golden highlight with victory pulse
+- **Empty Cells**: Subtle hover effects with plus indicators
+
+## 🔧 Game Storage & Cleanup
+
+### Storage System
+- **Local Storage**: Browser localStorage for offline capability
+- **Backend Sync**: MongoDB for cross-device persistence
+- **Automatic Fallback**: Graceful degradation when backend unavailable
+
+### Cleanup Features
+- **Post-Game Cleanup**: Completed games removed 30 seconds after prize distribution
+- **Periodic Cleanup**: Hourly maintenance removes old and abandoned games
+- **Manual Cleanup**: "Play Again" and "New Game" buttons trigger immediate cleanup
+- **Storage Optimization**: Prevents localStorage bloat and improves performance
+
+## 🚨 Error Handling
+
+### Wallet Conflicts
+- **Detection**: Automatic identification of conflicting wallet extensions
+- **Resolution**: Smart prioritization of Backpack wallet
+- **User Guidance**: Clear instructions for resolving conflicts
+
+### Network Issues
+- **Retry Logic**: Automatic transaction retries with exponential backoff
+- **Timeout Handling**: Graceful handling of network timeouts
+- **Fallback Modes**: Local gameplay when backend unavailable
+
+### Transaction Failures
+- **Fee Calculation**: Dynamic fee estimation for reliable transactions
+- **Balance Checks**: Pre-transaction validation
+- **Error Messages**: Clear, actionable error descriptions
+
+## 📊 Performance Features
+
+### Optimization
+- **Aggressive Caching**: Strategic cache busting for fresh data
+- **Parallel API Calls**: Simultaneous data fetching where possible
+- **Lazy Loading**: Components loaded on demand
+- **Minimal Re-renders**: Optimized React hooks and dependencies
+
+### Monitoring
+- **Console Logging**: Detailed debug information for development
+- **Transaction Tracking**: Full blockchain transaction logging
+- **Performance Metrics**: Load times and response tracking
+
+## 🔐 Security
+
+### Wallet Security
+- **No Private Key Storage**: Wallet extensions handle all private keys
+- **Secure Transactions**: All transactions signed by user wallet
+- **Escrow Protection**: Funds held in secure escrow accounts
+
+### Data Protection
+- **No Sensitive Storage**: No private data stored in localStorage
+- **HTTPS Only**: All communications encrypted
+- **Input Validation**: All user inputs validated and sanitized
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Game Not Loading**
 ```bash
-cd backend
-npm install
-cp env.example .env
-# Add your MongoDB connection string
-npm start
-# Server runs on http://localhost:3002
+# Clear browser cache and localStorage
+localStorage.clear()
+# Refresh page
 ```
 
-### Frontend Setup
+**Wallet Connection Issues**
 ```bash
-cd frontend
-npm install
-npm run dev
-# App runs on http://localhost:3000
+# Disable other wallet extensions
+# Use only Backpack wallet
+# Refresh page and reconnect
 ```
 
-## 🔧 Environment Variables
-
-### Backend (.env)
-```
-MONGODB_URI=your_mongodb_atlas_connection_string
-PORT=3002
-NODE_ENV=development
+**Transaction Failures**
+```bash
+# Check $GOR balance
+# Ensure sufficient funds for gas fees  
+# Try again after network confirmation
 ```
 
-### Frontend (.env.local)
+**Game Sync Issues**
+```bash
+# Check internet connection
+# Verify backend API status
+# Use local mode if needed
 ```
-NEXT_PUBLIC_API_URL=http://localhost:3002
-```
-
-## 🎮 Production Verification
-
-### Recent Transaction Examples
-- **Deposit**: `663vEuxVCXorQgxtxNdaBhPtABCxsPRUhhG1KwfZXhaRt1CwXR7q1xoYkBHPjB8fVHxH1o1fj8fD7K7ZiKMTDLQi`
-- **Prize Transfer**: `5t365XcJAPBgWVBMt255gegCptuTUrmf2KF6UZwR76QPyjQinQs95PJ5F78dL6Qbbr8aaVhSVHLMRyW23XZFWPTW`
-
-### Balance Verification
-- Starting: 0.981860 $GOR
-- After deposits: 0.977850 $GOR (-0.004 $GOR)
-- Prize distributed: 0.003990 $GOR
-
-## 🏆 Competition Features
-
-- **Real $GOR wagering** with secure escrow system
-- **Cross-device multiplayer** gaming
-- **Professional UI/UX** with animations
-- **Mobile responsive** design
-- **Production deployment** on major platforms
-- **Complete documentation** and setup guides
-
-## 📱 Mobile Support
-
-Optimized for all screen sizes:
-- **Desktop**: Full feature set
-- **Tablet**: Touch-friendly interface  
-- **Mobile**: 280px+ width support
-
-## 🔐 Security Features
-
-- **Client-side wallet** integration (no private key exposure)
-- **Shared escrow accounts** (no single point of control)
-- **Transaction confirmation** before proceeding
-- **Balance validation** before transfers
-- **Error handling** and recovery
-
-## 📊 Performance
-
-- **Frontend**: Sub-2s load times on Netlify
-- **Backend**: <200ms API response times on Render
-- **Database**: MongoDB Atlas global clusters
-- **Polling**: 5-second intervals for real-time sync
-
-## 🎨 Graphics & Animations
-
-- **3D-style game board** with glowing borders
-- **Bouncing piece animations** on placement
-- **Victory celebrations** with golden highlights
-- **Turn indicators** with visual feedback
-- **Mobile-optimized** touch interactions
 
 ## 🤝 Contributing
 
+### Development Workflow
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open Pull Request
 
-## 📄 License
+### Code Standards
+- **TypeScript**: Strict type checking enabled
+- **ESLint**: Airbnb configuration with custom rules
+- **Prettier**: Automated code formatting
+- **Testing**: Jest for unit tests, Cypress for e2e
+
+## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- **Gorbagana Network** for the blockchain infrastructure
-- **Backpack Wallet** for wallet integration
-- **MongoDB Atlas** for cloud database services
-- **Netlify & Render** for hosting platforms
+- **Gorbagana Team**: For the innovative blockchain platform
+- **Backpack Wallet**: For seamless wallet integration  
+- **Solana Foundation**: For the underlying blockchain technology
+- **Community**: For testing and feedback
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Discord**: [Gorbagana Community](https://discord.gg/gorbagana)
+- **Email**: support@gorbagana.wtf
 
 ---
 
-**Built for the Superteam Earn bounty competition** 🚀 
+**Built with 💚 for the Gorbagana ecosystem**
+
+*"In the cosmic dance of digital debris, only the strongest trash survives to become... a dumptruck!"* - Gorbagio 

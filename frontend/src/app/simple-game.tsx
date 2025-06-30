@@ -6,6 +6,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
 import { LAMPORTS_PER_SOL, PublicKey, Connection, Transaction, SystemProgram, Keypair } from '@solana/web3.js';
 import { Hash, Clock, Plus, Eye, Users, Trophy } from 'lucide-react';
+import { gameStorage } from '../lib/gameStorage';
 
 // Game types
 type GameStatus = "waiting" | "playing" | "finished" | "abandoned";
@@ -421,6 +422,7 @@ export default function SimpleGame() {
   const processedGamesRef = useRef<Set<string>>(new Set());
   const gameRef = useRef<Game | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cleanupIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update game ref when game changes
   useEffect(() => {
@@ -502,10 +504,14 @@ export default function SimpleGame() {
               processedGamesRef.current.add(gameKey);
               console.log('🏆 Processing prize distribution for finished game');
               await handlePrizeDistribution(updatedGame);
+              // Clean up completed game after prize distribution
+              setTimeout(() => cleanupCompletedGame(updatedGame.id), 30000); // Wait 30 seconds before cleanup
             } else if (updatedGame.status === 'abandoned') {
               processedGamesRef.current.add(gameKey);
               console.log('⏰ Processing refunds for abandoned game');
               await handlePrizeDistribution(updatedGame);
+              // Clean up abandoned game after refund processing
+              setTimeout(() => cleanupCompletedGame(updatedGame.id), 30000); // Wait 30 seconds before cleanup
             }
           }
 
@@ -609,7 +615,7 @@ export default function SimpleGame() {
           try {
             const prizeAmount = finishedGame.wager * 2;
             await transferPrize(prizeAmount, wallet.publicKey);
-            toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR!`);
+            toast.success(`🚛 You won and have evolved to a dumptruck! +${prizeAmount.toFixed(6)} $GOR`);
           } catch (error) {
             console.error('❌ Failed to claim prize:', error);
             toast.error('⚠️ Failed to claim prize - please try again');
@@ -632,7 +638,7 @@ export default function SimpleGame() {
       } else if (isWinner && !isCreator) {
         // Winner but not creator - wait for automatic prize distribution
         const prizeAmount = finishedGame.wager * 2;
-        toast.success(`🎉 You won ${prizeAmount.toFixed(6)} $GOR! Prize will be transferred automatically.`);
+        toast.success(`🚛 You won and have evolved to a dumptruck! +${prizeAmount.toFixed(6)} $GOR (transferring automatically)`);
       } else if (!isWinner && !isCreator) {
         // Loser and not creator - just show result
         if (finishedGame.status === 'abandoned') {
@@ -647,6 +653,56 @@ export default function SimpleGame() {
       toast.error('⚠️ Prize distribution failed - contact support');
     }
   };
+
+  // Clean up completed games from storage
+  const cleanupCompletedGame = async (gameId: string) => {
+    try {
+      console.log(`🧹 Cleaning up completed game: ${gameId}`);
+      await gameStorage.deleteGame(gameId);
+      console.log(`✅ Game ${gameId} cleaned up from storage`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to cleanup game ${gameId}:`, error);
+    }
+  };
+
+  // Periodic cleanup of idle and old games
+  const performPeriodicCleanup = () => {
+    try {
+      console.log('🧹 Performing periodic cleanup of old games...');
+      gameStorage.cleanupOldGames();
+      console.log('✅ Periodic cleanup completed');
+    } catch (error) {
+      console.warn('⚠️ Periodic cleanup failed:', error);
+    }
+  };
+
+  // Setup periodic cleanup interval
+  useEffect(() => {
+    // Start periodic cleanup every hour
+    if (cleanupIntervalRef.current) {
+      clearInterval(cleanupIntervalRef.current);
+    }
+    
+    // Run initial cleanup after 5 minutes
+    const initialCleanupTimer = setTimeout(() => {
+      performPeriodicCleanup();
+    }, 5 * 60 * 1000);
+    
+    // Then run every hour
+    cleanupIntervalRef.current = setInterval(() => {
+      performPeriodicCleanup();
+    }, 60 * 60 * 1000); // 1 hour intervals
+    
+    console.log('🔄 Periodic game cleanup scheduled (every hour)');
+    
+    return () => {
+      clearTimeout(initialCleanupTimer);
+      if (cleanupIntervalRef.current) {
+        clearInterval(cleanupIntervalRef.current);
+        cleanupIntervalRef.current = null;
+      }
+    };
+  }, []); // Run once on component mount
 
   // Transfer prize from escrow to winner (enhanced fee handling)
   const transferPrize = async (amount: number, recipient: PublicKey) => {
@@ -1737,7 +1793,10 @@ export default function SimpleGame() {
                     
                     {(game.status === 'finished' || game.status === 'abandoned') && (
                       <button
-                        onClick={() => {
+                        onClick={async () => {
+                          if (game?.id) {
+                            await cleanupCompletedGame(game.id);
+                          }
                           setGame(null);
                           setGameId("");
                         }}
@@ -1883,7 +1942,10 @@ export default function SimpleGame() {
                 {game.status === "finished" && (
                   <div style={{textAlign: 'center', marginTop: '1rem'}}>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        if (game?.id) {
+                          await cleanupCompletedGame(game.id);
+                        }
                         setGame(null);
                         setGameId("");
                       }}

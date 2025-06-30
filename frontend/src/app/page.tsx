@@ -573,7 +573,7 @@ function ComplexHome() {
           if (updatedGame.winner) {
             const isWinner = (updatedGame.winner === 1 && isPlayerX) || 
                            (updatedGame.winner === 2 && isPlayerO);
-            toast.success(isWinner ? "🎉 You won!" : "💔 You lost!");
+            toast.success(isWinner ? "🚛 You won and have evolved to a dumptruck!" : "🗑️ You're such trash, recycle yourself and try again! - Gorbagio");
           } else {
             toast.success("🤝 It's a tie!");
           }
