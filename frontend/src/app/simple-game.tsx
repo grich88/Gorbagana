@@ -427,8 +427,6 @@ export default function SimpleGame() {
     console.log('🚀 POLLING STARTED for game:', game.id, 'Status:', game.status);
 
     const pollGame = async () => {
-      if (isPolling) return; // Prevent overlapping polls
-
       console.log(`🔄 POLLING Game ${game.id} - Current status: ${game.status}, PlayerO: ${game.playerO ? 'YES' : 'NO'}`);
 
       try {
