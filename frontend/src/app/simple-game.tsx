@@ -419,10 +419,17 @@ export default function SimpleGame() {
 
   // Polling for game updates with enhanced sync detection
   useEffect(() => {
-    if (!game || !isConnected) return;
+    if (!game || !isConnected) {
+      console.log('🚫 Polling NOT started:', { hasGame: !!game, isConnected, gameId: game?.id });
+      return;
+    }
+
+    console.log('🚀 POLLING STARTED for game:', game.id, 'Status:', game.status);
 
     const pollGame = async () => {
       if (isPolling) return; // Prevent overlapping polls
+
+      console.log(`🔄 POLLING Game ${game.id} - Current status: ${game.status}, PlayerO: ${game.playerO ? 'YES' : 'NO'}`);
 
       try {
         const response = await fetch(`${API_BASE_URL}/api/games/${game.id}?bust=${Date.now()}&rand=${Math.random()}`, {
@@ -443,6 +450,14 @@ export default function SimpleGame() {
 
         const data = await response.json();
         const updatedGame = data.game;
+
+        console.log(`📡 POLL RESULT for ${game.id}:`, {
+          backendStatus: updatedGame.status,
+          backendPlayerO: updatedGame.playerO,
+          localStatus: game.status,
+          localPlayerO: game.playerO,
+          hasPlayerJoined: !game.playerO && !!updatedGame.playerO
+        });
 
         if (updatedGame) {
           // Detailed change detection for better notifications
