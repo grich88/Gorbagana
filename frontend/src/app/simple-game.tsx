@@ -17,7 +17,7 @@ interface Game {
   board: number[];
   currentTurn: number;
   status: GameStatus;
-  winner?: number;
+  winner?: number | null;
   createdAt: number;
   wager: number;
   isPublic: boolean;
@@ -460,6 +460,16 @@ export default function SimpleGame() {
 
   // Handle prize distribution when game ends
   const handlePrizeDistribution = async (finishedGame: Game) => {
+    // CRITICAL VALIDATION: Only run on actually finished/abandoned games
+    if (finishedGame.status !== 'finished' && finishedGame.status !== 'abandoned') {
+      console.warn('⚠️ handlePrizeDistribution called on non-finished game:', {
+        status: finishedGame.status,
+        winner: finishedGame.winner,
+        gameId: finishedGame.id
+      });
+      return;
+    }
+
     if (!wallet.publicKey || finishedGame.wager <= 0) {
       return;
     }
@@ -479,7 +489,7 @@ export default function SimpleGame() {
       
       if (isCreator && escrowAccount) {
         // Only the game creator can distribute prizes (has escrow private key)
-        if (finishedGame.winner === 0) {
+        if (finishedGame.winner === 0 || (finishedGame.winner === null && finishedGame.status === 'finished')) {
           // Tie game - return deposits to both players
           console.log('🤝 Tie game. Returning deposits to both players...');
           try {
@@ -709,6 +719,7 @@ export default function SimpleGame() {
         board: [0, 0, 0, 0, 0, 0, 0, 0, 0],
         currentTurn: 1,
         status: "waiting",
+        winner: null,
         createdAt: Date.now(),
         wager: wagerAmount,
         isPublic: makeGamePublic,

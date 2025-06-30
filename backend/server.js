@@ -90,7 +90,8 @@ app.post('/api/games', async (req, res) => {
       id: gameId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      board: gameData.board ? gameData.board.map(cell => Number(cell)) : [0, 0, 0, 0, 0, 0, 0, 0, 0]
+      board: gameData.board ? gameData.board.map(cell => Number(cell)) : [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      winner: gameData.winner !== undefined ? gameData.winner : null
     };
     
     console.log('💾 Game data being saved:', {
@@ -141,11 +142,18 @@ app.get('/api/games/:gameId', async (req, res) => {
       game.board = game.board.map(cell => Number(cell));
     }
     
+    // CRITICAL FIX: Ensure winner null is preserved, not converted to 0
+    if (game.winner === undefined) {
+      game.winner = null;
+    }
+    
     console.log(`📖 Retrieved game: ${gameId}`, {
       wager: game.wager,
       escrowAccount: game.escrowAccount,
       hasEscrowAccount: !!game.escrowAccount,
       status: game.status,
+      winner: game.winner,
+      winnerType: typeof game.winner,
       boardType: typeof game.board[0],
       boardSample: game.board.slice(0, 3)
     });
