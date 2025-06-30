@@ -371,12 +371,15 @@ export default function SimpleGame() {
       if (isPolling) return; // Prevent overlapping polls
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}?t=${Date.now()}`, {
-          cache: 'no-cache', // Force fresh data
+        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}?bust=${Date.now()}&rand=${Math.random()}`, {
+          cache: 'no-store', // Strongest cache disable
+          method: 'GET',
           headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Cache-Control': 'no-cache, no-store, must-revalidate, private, max-age=0, s-maxage=0',
             'Pragma': 'no-cache',
-            'Expires': '0'
+            'Expires': '0',
+            'If-None-Match': '*',
+            'If-Modified-Since': 'Mon, 26 Jul 1997 05:00:00 GMT'
           }
         });
         if (!response.ok) {
