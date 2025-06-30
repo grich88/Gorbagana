@@ -334,11 +334,13 @@ app.post('/api/games/:gameId/move', async (req, res) => {
   }
 });
 
-// Abandon a game (new endpoint)
+// Abandon a game (enhanced endpoint)
 app.post('/api/games/:gameId/abandon', async (req, res) => {
   try {
     const { gameId } = req.params;
     const { playerAddress, reason } = req.body;
+    
+    console.log(`⏰ Abandon request for game ${gameId} by ${playerAddress} (reason: ${reason})`);
     
     const game = await db.getGame(gameId);
     if (!game) {
@@ -363,13 +365,21 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
     const lastUpdate = game.updatedAt || game.createdAt;
     const timeSinceLastMove = now - lastUpdate;
     
-    // Validate abandonment criteria
+    // Enhanced abandonment criteria - more permissive for immediate abandonment
     const GAME_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
     const MOVE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
     
-    const canAbandon = gameAge > GAME_TIMEOUT || 
+    // Allow abandonment if:
+    // 1. Player explicitly requests it (always allowed)
+    // 2. Game is older than timeout
+    // 3. No moves for timeout period  
+    // 4. Creator can always abandon waiting games
+    // 5. Either player can abandon playing games
+    const canAbandon = reason === 'player_request' || 
+                      gameAge > GAME_TIMEOUT || 
                       timeSinceLastMove > MOVE_TIMEOUT ||
-                      reason === 'player_request'; // Allow manual abandonment
+                      (isPlayerX && game.status === 'waiting') || // Creator can always abandon waiting games
+                      game.status === 'playing'; // Either player can abandon playing games
     
     if (!canAbandon) {
       return res.status(400).json({ 
@@ -393,7 +403,7 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
     
     const updatedGame = await db.getGame(gameId);
     
-    console.log(`⏰ Game ${gameId} marked as abandoned by ${playerAddress} (reason: ${reason})`);
+    console.log(`✅ Game ${gameId} marked as abandoned by ${playerAddress} (reason: ${reason})`);
     res.json({ success: true, game: updatedGame, message: 'Game marked as abandoned' });
   } catch (error) {
     console.error('Error abandoning game:', error);

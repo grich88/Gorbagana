@@ -631,6 +631,131 @@ body {
     margin: 1rem 0;
     padding: 1.5rem;
   }
+
+  .container {
+    padding: 0.5rem !important;
+    margin: 0.5rem !important;
+  }
+
+  .card {
+    margin: 0.5rem 0 !important;
+    padding: 1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .card-header {
+    font-size: 1.2rem !important;
+    padding: 0.75rem 0 !important;
+  }
+
+  /* Mobile-optimized game board */
+  .game-board {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0.5rem !important;
+    max-width: 350px !important;
+    margin: 1rem auto !important;
+  }
+
+  .game-board button {
+    height: 80px !important;
+    width: 80px !important;
+    font-size: 2rem !important;
+    border-radius: 12px !important;
+  }
+
+  /* Mobile form adjustments */
+  .input-field {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 0.75rem !important;
+    border-radius: 8px !important;
+  }
+
+  /* Mobile button improvements */
+  .btn {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9rem !important;
+    border-radius: 8px !important;
+    min-height: 44px !important; /* Touch target size */
+  }
+
+  /* Mobile grid adjustments */
+  [style*="grid-template-columns: 1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Mobile wallet section */
+  .wallet-section {
+    margin-bottom: 1rem !important;
+  }
+
+  /* Mobile balance display */
+  .balance-display {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    text-align: center !important;
+  }
+
+  /* Mobile game status display */
+  .flex.items-center.justify-between {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  /* Mobile game actions */
+  .flex.gap-2 {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Mobile victory banner */
+  .victory-banner {
+    padding: 1rem !important;
+    margin: 1rem 0 !important;
+  }
+
+  /* Mobile turn indicator */
+  .turn-indicator {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    text-align: center !important;
+  }
+
+  .vs-divider {
+    margin: 0.5rem 0 !important;
+  }
+
+  /* Mobile public lobby */
+  .public-lobby-item {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  /* Mobile text adjustments */
+  h1, h2, h3 {
+    font-size: 1.5rem !important;
+    text-align: center !important;
+  }
+
+  /* Mobile spacing */
+  [style*="marginBottom: '1rem'"] {
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* Responsive checkboxes and labels */
+  label {
+    font-size: 0.9rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Mobile toast notifications */
+  .toast {
+    max-width: 90vw !important;
+    font-size: 0.9rem !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -669,6 +794,52 @@ body {
   .player-turn {
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
+  }
+
+  .game-board {
+    max-width: 280px !important;
+  }
+
+  .game-board button {
+    height: 70px !important;
+    width: 70px !important;
+    font-size: 1.8rem !important;
+  }
+
+  .card {
+    margin: 0.25rem 0 !important;
+    padding: 0.75rem !important;
+  }
+
+  .btn {
+    font-size: 0.8rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+
+  h1, h2, h3 {
+    font-size: 1.3rem !important;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (max-height: 600px) and (orientation: landscape) {
+  .container {
+    padding: 0.25rem !important;
+  }
+
+  .card {
+    margin: 0.25rem 0 !important;
+    padding: 0.5rem !important;
+  }
+
+  .game-board {
+    max-width: 250px !important;
+  }
+
+  .game-board button {
+    height: 60px !important;
+    width: 60px !important;
+    font-size: 1.5rem !important;
   }
 }
 

@@ -58,6 +58,7 @@ export default function SimpleGame() {
   // Public games functionality
   const [showPublicLobby, setShowPublicLobby] = useState(false);
   const [publicGames, setPublicGames] = useState<Game[]>([]);
+  const [makeGamePublic, setMakeGamePublic] = useState(true); // New: Public/Private toggle
 
   // Create Gorbagana connection (backup if useConnection doesn't work)
   const gorbaganaConnection = new Connection('https://rpc.gorbagana.wtf/', 'confirmed');
@@ -362,7 +363,7 @@ export default function SimpleGame() {
     }
   }, [wallet.connected, wallet.publicKey, fetchGorBalance]);
 
-  // Polling for game updates with improved sync detection
+  // Polling for game updates with enhanced sync detection
   useEffect(() => {
     if (!game || !isConnected) return;
 
@@ -370,7 +371,13 @@ export default function SimpleGame() {
       if (isPolling) return; // Prevent overlapping polls
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}`);
+        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}`, {
+          cache: 'no-cache', // Force fresh data
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
         if (!response.ok) {
           console.warn(`Failed to fetch game ${game.id}: ${response.status}`);
           return;
@@ -380,34 +387,46 @@ export default function SimpleGame() {
         const updatedGame = data.game;
 
         if (updatedGame) {
-          // Check for significant state changes to notify user
+          // Detailed change detection for better notifications
           const hasStatusChanged = updatedGame.status !== game.status;
           const hasPlayerJoined = !game.playerO && updatedGame.playerO;
           const hasMoveBeenMade = JSON.stringify(updatedGame.board) !== JSON.stringify(game.board);
+          const hasTurnChanged = updatedGame.currentTurn !== game.currentTurn;
           
-          // Update game state
+          console.log(`🔄 Game ${game.id} poll:`, {
+            currentStatus: game.status,
+            newStatus: updatedGame.status,
+            hasPlayerJoined,
+            hasMoveBeenMade,
+            hasTurnChanged,
+            currentPlayerO: game.playerO,
+            newPlayerO: updatedGame.playerO
+          });
+          
+          // Update game state first
           setGame(updatedGame);
 
           // Notify about important changes
           if (hasPlayerJoined) {
-            toast.success('🎮 Opponent joined! Game is starting!');
+            console.log('🎮 PLAYER JOINED NOTIFICATION TRIGGERED');
+            toast.success('🎮 Opponent joined! Game is starting!', { duration: 6000 });
           } else if (hasStatusChanged) {
             if (updatedGame.status === 'playing' && game.status === 'waiting') {
-              toast.success('🚀 Game has started!');
+              toast.success('🚀 Game has started!', { duration: 4000 });
             } else if (updatedGame.status === 'finished') {
               if (updatedGame.winner === 1) {
-                toast.success('🗑️ Trash Cans win!');
+                toast.success('🗑️ Trash Cans win!', { duration: 4000 });
               } else if (updatedGame.winner === 2) {
-                toast.success('♻️ Recycling Bins win!');
+                toast.success('♻️ Recycling Bins win!', { duration: 4000 });
               } else {
-                toast('🤝 Game ended in a tie!');
+                toast('🤝 Game ended in a tie!', { duration: 4000 });
               }
             }
           } else if (hasMoveBeenMade && updatedGame.status === 'playing') {
             const isMyTurn = (updatedGame.currentTurn === 1 && wallet.publicKey?.toString() === updatedGame.playerX) ||
                            (updatedGame.currentTurn === 2 && wallet.publicKey?.toString() === updatedGame.playerO);
             if (isMyTurn) {
-              toast('🎯 Your turn!');
+              toast('🎯 Your turn!', { duration: 3000 });
             }
           }
 
@@ -428,7 +447,7 @@ export default function SimpleGame() {
 
     pollGame(); // Initial poll
     setIsPolling(true);
-    const pollInterval = setInterval(pollGame, 3000); // Faster polling for better sync
+    const pollInterval = setInterval(pollGame, 2000); // Very fast polling for better sync - 2 seconds
     
     return () => {
       clearInterval(pollInterval);
@@ -689,7 +708,7 @@ export default function SimpleGame() {
         status: "waiting",
         createdAt: Date.now(),
         wager: wagerAmount,
-        isPublic: true, // Always create as public for now (can be made configurable)
+        isPublic: makeGamePublic,
         creatorName: `Player ${wallet.publicKey.toString().slice(0, 4)}...${wallet.publicKey.toString().slice(-4)}`,
         escrowAccount: escrowData?.escrowAccount,
         txSignature: escrowData?.txSignature,
@@ -721,9 +740,9 @@ export default function SimpleGame() {
       setLoading(false);
       
       if (wagerAmount > 0) {
-        toast.success(`🔒 Public game created with ${wagerAmount.toFixed(6)} $GOR wager! Share ID: ${newGameId}`);
+        toast.success(`🔒 ${makeGamePublic ? 'Public' : 'Private'} game created with ${wagerAmount.toFixed(6)} $GOR wager! ${makeGamePublic ? 'Available in public lobby.' : `Share ID: ${newGameId}`}`);
       } else {
-        toast.success(`🗑️ Free public game created! Share ID: ${newGameId}`);
+        toast.success(`🗑️ Free ${makeGamePublic ? 'public' : 'private'} game created! ${makeGamePublic ? 'Available in public lobby.' : `Share ID: ${newGameId}`}`);
       }
       
       // Refresh balance after transaction
@@ -1213,6 +1232,27 @@ export default function SimpleGame() {
                       />
                       <div style={{fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem'}}>
                         Your Balance: {gorBalance.toFixed(6)} $GOR
+                      </div>
+                    </div>
+
+                    {/* Public/Private Game Selection */}
+                    <div style={{marginBottom: '1rem', padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)'}}>
+                      <label style={{display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#d1d5db', cursor: 'pointer'}}>
+                        <input
+                          type="checkbox"
+                          checked={makeGamePublic}
+                          onChange={(e) => setMakeGamePublic(e.target.checked)}
+                          style={{width: '16px', height: '16px'}}
+                        />
+                        <span style={{fontWeight: 'bold', color: '#10b981'}}>
+                          📢 Make this game public
+                        </span>
+                      </label>
+                      <div style={{fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.25rem', marginLeft: '1.5rem'}}>
+                        {makeGamePublic ? 
+                          "Other players can find and join your game from the public lobby" : 
+                          "Only players with your Game ID can join (private game)"
+                        }
                       </div>
                     </div>
 
