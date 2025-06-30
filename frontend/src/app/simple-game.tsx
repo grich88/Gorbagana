@@ -930,8 +930,21 @@ export default function SimpleGame() {
         body: JSON.stringify(newGame)
       });
 
+      console.log('🌐 Backend response status:', response.status);
+      console.log('🌐 Backend response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error('Failed to create game on backend');
+        // Get detailed error from backend
+        let errorDetails;
+        try {
+          errorDetails = await response.json();
+          console.error('❌ Backend error details:', errorDetails);
+        } catch (parseError) {
+          const textError = await response.text();
+          console.error('❌ Backend error (raw text):', textError);
+          errorDetails = { error: textError };
+        }
+        throw new Error(`Backend error (${response.status}): ${JSON.stringify(errorDetails)}`);
       }
 
       const data = await response.json();
