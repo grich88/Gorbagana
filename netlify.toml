@@ -1,6 +1,6 @@
 [build]
-  # Simple build command that works from root directory
-  command = "cd frontend && npm install && npm run build"
+  # Emergency fix - works with Netlify's expected command
+  command = "npm run build"
   publish = "frontend/out"
   
   [build.environment]
