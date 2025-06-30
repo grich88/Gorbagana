@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { toast } from 'react-hot-toast';
@@ -52,7 +52,7 @@ export default function SimpleGame() {
   const [loading, setLoading] = useState(false);
   const [gorBalance, setGorBalance] = useState<number>(0);
   const [isConnected, setIsConnected] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
+
   const [escrowAccount, setEscrowAccount] = useState<Keypair | null>(null);
   
   // Public games functionality
@@ -417,109 +417,66 @@ export default function SimpleGame() {
     }
   }, [wallet.connected, wallet.publicKey, fetchGorBalance]);
 
-  // Polling for game updates with enhanced sync detection
+  // Track processed games to prevent repeated prize distribution
+  const processedGamesRef = useRef<Set<string>>(new Set());
+  const gameRef = useRef<Game | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update game ref when game changes
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+
+  // Polling for game updates - FIXED infinite loop issue
   useEffect(() => {
     if (!game || !isConnected) {
-      console.log('🚫 Polling NOT started:', { hasGame: !!game, isConnected, gameId: game?.id });
+      console.log('🚫 Polling stopped - no game or not connected');
       return;
     }
 
-    console.log('🚀 POLLING STARTED for game:', game.id, 'Status:', game.status);
+    // Clear any existing polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    console.log('🚀 Starting polling for game:', game.id);
 
     const pollGame = async () => {
-      console.log(`🔄 POLLING Game ${game.id} - Current status: ${game.status}, PlayerO: ${game.playerO ? 'YES' : 'NO'}`);
+      const currentGame = gameRef.current;
+      if (!currentGame) return;
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}?bust=${Date.now()}&rand=${Math.random()}`, {
-          cache: 'no-store', // Strongest cache disable
-          method: 'GET',
+        const response = await fetch(`${API_BASE_URL}/api/games/${currentGame.id}?bust=${Date.now()}`, {
+          cache: 'no-store',
           headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate, private, max-age=0, s-maxage=0',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
-            'Expires': '0',
-            'If-None-Match': '*',
-            'If-Modified-Since': 'Mon, 26 Jul 1997 05:00:00 GMT'
+            'Expires': '0'
           }
         });
+        
         if (!response.ok) {
-          console.warn(`Failed to fetch game ${game.id}: ${response.status}`);
+          console.warn(`Failed to fetch game ${currentGame.id}: ${response.status}`);
           return;
         }
 
         const data = await response.json();
         const updatedGame = data.game;
 
-        console.log(`📡 POLL RESULT for ${game.id}:`, {
-          backendStatus: updatedGame.status,
-          backendPlayerO: updatedGame.playerO,
-          localStatus: game.status,
-          localPlayerO: game.playerO,
-          hasPlayerJoined: !game.playerO && !!updatedGame.playerO
-        });
-
         if (updatedGame) {
-          // Detailed change detection for better notifications
-          const hasStatusChanged = updatedGame.status !== game.status;
-          const hasPlayerJoined = !game.playerO && updatedGame.playerO;
-          const hasMoveBeenMade = JSON.stringify(updatedGame.board) !== JSON.stringify(game.board);
-          const hasTurnChanged = updatedGame.currentTurn !== game.currentTurn;
+          // Check for significant changes
+          const hasPlayerJoined = !currentGame.playerO && updatedGame.playerO;
+          const hasStatusChanged = updatedGame.status !== currentGame.status;
+          const hasMoveBeenMade = JSON.stringify(updatedGame.board) !== JSON.stringify(currentGame.board);
           
-          console.log(`🔄 Game ${game.id} poll:`, {
-            currentStatus: game.status,
-            newStatus: updatedGame.status,
-            hasPlayerJoined,
-            hasMoveBeenMade,
-            hasTurnChanged,
-            currentPlayerO: game.playerO,
-            newPlayerO: updatedGame.playerO,
-            playerOCheck: `${!game.playerO} && ${!!updatedGame.playerO}`,
-            statusChanging: game.status !== updatedGame.status,
-            // CRITICAL DEBUGGING: See exactly what's in the game object
-            DEBUGGING_WINNER: updatedGame.winner,
-            DEBUGGING_WINNER_TYPE: typeof updatedGame.winner,
-            DEBUGGING_WINNER_NULL_CHECK: updatedGame.winner === null,
-            DEBUGGING_WINNER_UNDEFINED_CHECK: updatedGame.winner === undefined,
-            DEBUGGING_WINNER_NOT_UNDEFINED: updatedGame.winner !== undefined,
-            DEBUGGING_BOARD: updatedGame.board,
-            DEBUGGING_FULL_GAME: updatedGame
-          });
-          
-          // 🚨 EMERGENCY DETAILED LOGGING FOR ISSUE DIAGNOSIS 🚨
-          console.log('🚨🚨🚨 EMERGENCY POLL DIAGNOSIS 🚨🚨🚨');
-          console.log('CURRENT GAME STATE:', JSON.stringify({
-            id: game.id,
-            status: game.status,
-            playerX: game.playerX,
-            playerO: game.playerO,
-            hasPlayerO: !!game.playerO
-          }, null, 2));
-          console.log('NEW GAME STATE:', JSON.stringify({
-            id: updatedGame.id,
-            status: updatedGame.status,
-            playerX: updatedGame.playerX,
-            playerO: updatedGame.playerO,
-            hasPlayerO: !!updatedGame.playerO
-          }, null, 2));
-          console.log('STATUS CHANGE CHECK:', {
-            oldStatus: game.status,
-            newStatus: updatedGame.status,
-            statusChanged: game.status !== updatedGame.status,
-            oldPlayerO: game.playerO,
-            newPlayerO: updatedGame.playerO,
-            playerJoined: !game.playerO && !!updatedGame.playerO
-          });
-          console.log('🚨🚨🚨 END EMERGENCY DIAGNOSIS 🚨🚨🚨');
-          
-          // Update game state first
+          // Update game state
           setGame(updatedGame);
 
-          // Notify about important changes
+          // Notifications for important changes
           if (hasPlayerJoined) {
-            console.log('🎮 PLAYER JOINED NOTIFICATION TRIGGERED');
             toast.success('🎮 Opponent joined! Game is starting!', { duration: 6000 });
           } else if (hasStatusChanged) {
-            if (updatedGame.status === 'playing' && game.status === 'waiting') {
-              console.log('🚀 STATUS CHANGED TO PLAYING - Game started!');
+            if (updatedGame.status === 'playing' && currentGame.status === 'waiting') {
               toast.success('🚀 Game has started!', { duration: 4000 });
             } else if (updatedGame.status === 'finished') {
               if (updatedGame.winner === 1) {
@@ -538,39 +495,23 @@ export default function SimpleGame() {
             }
           }
 
-          // CRITICAL FIX: Only handle prize distribution for ACTUALLY finished games
-          console.log('🔍 PRIZE DISTRIBUTION CHECK:', {
-            status: updatedGame.status,
-            winner: updatedGame.winner,
-            winnerType: typeof updatedGame.winner,
-            isFinished: updatedGame.status === 'finished',
-            isAbandoned: updatedGame.status === 'abandoned', 
-            hasRealWinner: updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0,
-            shouldCallPrizeDistribution: (updatedGame.status === 'finished' && (updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0)) || updatedGame.status === 'abandoned'
-          });
+          // Handle prize distribution (only once per game)
+          const gameKey = `${updatedGame.id}-${updatedGame.status}-${updatedGame.winner}`;
+          if (!processedGamesRef.current.has(gameKey)) {
+            if (updatedGame.status === 'finished' && (updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0)) {
+              processedGamesRef.current.add(gameKey);
+              console.log('🏆 Processing prize distribution for finished game');
+              await handlePrizeDistribution(updatedGame);
+            } else if (updatedGame.status === 'abandoned') {
+              processedGamesRef.current.add(gameKey);
+              console.log('⏰ Processing refunds for abandoned game');
+              await handlePrizeDistribution(updatedGame);
+            }
+          }
 
-          // Handle game completion - FIXED LOGIC
-          if (updatedGame.status === 'finished' && (updatedGame.winner === 1 || updatedGame.winner === 2 || updatedGame.winner === 0)) {
-            // Only call prize distribution for games that are actually finished with a real winner/tie
-            console.log('✅ CALLING handlePrizeDistribution for finished game with winner:', updatedGame.winner);
-            await handlePrizeDistribution(updatedGame);
-          } else if (updatedGame.status === 'abandoned') {
-            // Handle abandoned games
-            console.log('✅ CALLING handlePrizeDistribution for abandoned game');
-            await handlePrizeDistribution(updatedGame);
-          } else if (updatedGame.status === 'playing') {
-            // Check for abandoned games during active polling
+          // Check for abandoned games during play
+          if (updatedGame.status === 'playing') {
             await checkForAbandonedGame(updatedGame);
-          } else {
-            console.log('🚫 NOT calling handlePrizeDistribution - game not in final state:', {
-              status: updatedGame.status,
-              winner: updatedGame.winner,
-              reason: updatedGame.status === 'waiting' ? 'Game still waiting for players' : 
-                     updatedGame.status === 'playing' ? 'Game still in progress' :
-                     updatedGame.winner === null ? 'Winner is null (game not finished)' :
-                     updatedGame.winner === undefined ? 'Winner is undefined (game not finished)' :
-                     'Unknown reason'
-            });
           }
         }
       } catch (error) {
@@ -578,101 +519,52 @@ export default function SimpleGame() {
       }
     };
 
+    // Start polling with reasonable interval
     pollGame(); // Initial poll
-    setIsPolling(true);
-    const pollInterval = setInterval(pollGame, 2000); // Very fast polling for better sync - 2 seconds
+    pollingIntervalRef.current = setInterval(pollGame, 5000); // 5 second intervals
     
     return () => {
-      clearInterval(pollInterval);
-      setIsPolling(false);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
     };
-  }, [game, isConnected, wallet.publicKey]);
+  }, [game?.id, isConnected]); // Only depend on game.id and connection status
 
   // Handle prize distribution when game ends
   const handlePrizeDistribution = async (finishedGame: Game) => {
-    console.log('🔥 handlePrizeDistribution called with game:', {
-      id: finishedGame.id,
-      status: finishedGame.status,
-      winner: finishedGame.winner,
-      winnerType: typeof finishedGame.winner,
-      createdAt: finishedGame.createdAt,
-      updatedAt: finishedGame.updatedAt,
-      timeSinceCreation: Date.now() - finishedGame.createdAt,
-      playerX: finishedGame.playerX,
-      playerO: finishedGame.playerO,
-      board: finishedGame.board,
-      boardNotEmpty: finishedGame.board.some(cell => cell !== 0)
-    });
-
-    // CRITICAL VALIDATION #1: Only run on actually finished/abandoned games
+    // Basic validations
     if (finishedGame.status !== 'finished' && finishedGame.status !== 'abandoned') {
-      console.warn('⚠️ BLOCK #1: handlePrizeDistribution called on non-finished game:', {
-        status: finishedGame.status,
-        winner: finishedGame.winner,
-        gameId: finishedGame.id
-      });
       return;
     }
 
-    // CRITICAL VALIDATION #2: Don't run on games that were just created (less than 30 seconds old)
     const timeSinceCreation = Date.now() - finishedGame.createdAt;
-    if (timeSinceCreation < 30000) { // 30 seconds minimum
-      console.warn('⚠️ BLOCK #2: Game too new for prize distribution:', {
-        gameId: finishedGame.id,
-        timeSinceCreation,
-        createdAt: finishedGame.createdAt,
-        now: Date.now()
-      });
+    if (timeSinceCreation < 30000) {
+      console.log('⚠️ Game too new for prize distribution');
       return;
     }
 
-    // CRITICAL VALIDATION #3: Don't run on games where no moves have been made (empty board)
     const hasMovesBeenMade = finishedGame.board.some(cell => cell !== 0);
     if (!hasMovesBeenMade && finishedGame.status === 'finished') {
-      console.warn('⚠️ BLOCK #3: No moves made - this is not a real finished game:', {
-        gameId: finishedGame.id,
-        board: finishedGame.board,
-        status: finishedGame.status,
-        winner: finishedGame.winner
-      });
+      console.log('⚠️ No moves made - skipping prize distribution');
       return;
     }
 
-    // CRITICAL VALIDATION #4: Don't run on games with only one player unless abandoned
     if (!finishedGame.playerO && finishedGame.status === 'finished') {
-      console.warn('⚠️ BLOCK #4: Game marked finished but no second player joined:', {
-        gameId: finishedGame.id,
-        playerX: finishedGame.playerX,
-        playerO: finishedGame.playerO,
-        status: finishedGame.status
-      });
+      console.log('⚠️ Single player game - skipping prize distribution');
       return;
     }
 
-    // CRITICAL VALIDATION #5: Validate winner value for finished games
     if (finishedGame.status === 'finished' && ![0, 1, 2].includes(finishedGame.winner as number)) {
-      console.warn('⚠️ BLOCK #5: Invalid winner value for finished game:', {
-        gameId: finishedGame.id,
-        winner: finishedGame.winner,
-        winnerType: typeof finishedGame.winner,
-        status: finishedGame.status
-      });
+      console.log('⚠️ Invalid winner value');
       return;
     }
 
     if (!wallet.publicKey || finishedGame.wager <= 0) {
-      console.warn('⚠️ BLOCK #6: No wallet or invalid wager:', {
-        hasWallet: !!wallet.publicKey,
-        wager: finishedGame.wager
-      });
       return;
     }
 
-    console.log('✅ ALL VALIDATIONS PASSED - Proceeding with prize distribution');
-
     try {
-      console.log('🏆 Checking prize distribution...');
-      
       const isPlayerX = wallet.publicKey.toString() === finishedGame.playerX;
       const isPlayerO = wallet.publicKey.toString() === finishedGame.playerO;
       
@@ -687,7 +579,7 @@ export default function SimpleGame() {
         // Only the game creator can distribute prizes (has escrow private key)
         if (finishedGame.winner === 0 || (finishedGame.winner === null && finishedGame.status === 'finished')) {
           // Tie game - return deposits to both players
-          console.log('🤝 Tie game. Returning deposits to both players...');
+          console.log('🤝 Processing tie game refunds');
           try {
             await transferPrize(finishedGame.wager, wallet.publicKey); // Return to creator (self)
             if (finishedGame.playerO) {
@@ -700,7 +592,7 @@ export default function SimpleGame() {
           }
         } else if (finishedGame.status === 'abandoned') {
           // Abandoned game - return deposits to both players
-          console.log('⏰ Abandoned game. Returning deposits to both players...');
+          console.log('⏰ Processing abandoned game refunds');
           try {
             await transferPrize(finishedGame.wager, wallet.publicKey); // Return to creator (self)
             if (finishedGame.playerO) {
@@ -713,7 +605,7 @@ export default function SimpleGame() {
           }
         } else if (isWinner) {
           // Creator won - take the full prize
-          console.log('🏆 You won! Distributing your prize...');
+          console.log('🏆 Processing winner prize for creator');
           try {
             const prizeAmount = finishedGame.wager * 2;
             await transferPrize(prizeAmount, wallet.publicKey);
@@ -724,7 +616,7 @@ export default function SimpleGame() {
           }
         } else {
           // Creator lost - send prize to winner
-          console.log('😢 You lost. Sending prize to winner...');
+          console.log('😢 Processing prize transfer to winner');
           const winnerAddress = finishedGame.winner === 2 ? finishedGame.playerO : finishedGame.playerX;
           if (winnerAddress) {
             try {
@@ -981,10 +873,7 @@ export default function SimpleGame() {
       // Clear wallet conflict flag on successful creation
       setWalletConflictDetected(false);
 
-      // Start polling for opponent
-      if (!isPolling) {
-        setIsPolling(true);
-      }
+      // Polling will start automatically via effect
 
       // Refresh balance after transaction
       setTimeout(fetchGorBalance, 2000);
@@ -1478,21 +1367,7 @@ export default function SimpleGame() {
       return { healthy: true, issues: [], suggestions: [] };
     }
     
-    // DETAILED DEBUGGING: Log exactly what's being detected
-    console.log('🔍 DETAILED WALLET DETECTION:', {
-      'window.ethereum exists': !!window.ethereum,
-      'window.ethereum type': typeof window.ethereum,
-      'window.ethereum.request exists': !!(window.ethereum && typeof window.ethereum.request === 'function'),
-      'window.ethereum.isMetaMask': !!(window.ethereum && window.ethereum.isMetaMask),
-      'window.ethereum.isBackpack': !!(window.ethereum && window.ethereum.isBackpack),
-      'window.ethereum object': window.ethereum ? Object.keys(window.ethereum).slice(0, 10) : null,
-      'window.solana exists': !!window.solana,
-      'window.solana.isBackpack': !!(window.solana && window.solana.isBackpack),
-      'window.solana.isPhantom': !!(window.solana && window.solana.isPhantom),
-      'window.solana object': window.solana ? Object.keys(window.solana).slice(0, 10) : null,
-    });
-    
-    // FIXED: Smart wallet detection that understands Backpack provides both interfaces
+    // Smart wallet detection that understands Backpack provides both interfaces
     const hasEthereum = !!window.ethereum;
     const hasSolana = !!window.solana;
     const hasBackpackEthereum = !!(window.ethereum && window.ethereum.isBackpack);
@@ -1501,20 +1376,9 @@ export default function SimpleGame() {
     const hasMetaMask = !!(window.ethereum && window.ethereum.isMetaMask);
     const hasConflictWarning = !!(window as any).__ethereumConflictWarning;
     
-    // CRITICAL FIX: Detect if this is actually just Backpack providing both interfaces
+    // Detect if this is actually just Backpack providing both interfaces
     // Backpack sometimes reports its Solana interface as Phantom incorrectly
     const isBackpackProvidingBothInterfaces = hasBackpackEthereum && hasPhantom && !hasBackpackSolana;
-    
-    console.log('🔍 WALLET FLAGS:', {
-      hasEthereum,
-      hasSolana,
-      hasBackpackEthereum,
-      hasBackpackSolana,
-      hasPhantom,
-      hasMetaMask,
-      hasConflictWarning,
-      isBackpackProvidingBothInterfaces
-    });
     
     // Check for REAL conflicts (not Backpack's dual interfaces)
     if (hasMetaMask && (hasBackpackEthereum || hasBackpackSolana)) {
@@ -1551,32 +1415,6 @@ export default function SimpleGame() {
     }
     
     const healthy = issues.length === 0;
-    
-    // Enhanced debugging to help troubleshoot false positives
-    console.log('🔍 Wallet Health Check Results:', {
-      hasEthereum,
-      hasSolana,
-      hasBackpackEthereum,
-      hasBackpackSolana,
-      hasPhantom,
-      hasMetaMask,
-      isBackpackProvidingBothInterfaces,
-      hasAnyBackpack,
-      walletConnected: wallet.connected,
-      walletName: wallet.wallet?.adapter?.name,
-      issues: issues,
-      issuesCount: issues.length,
-      healthy,
-      conflictWarning: hasConflictWarning,
-      // DETAILED ISSUE BREAKDOWN
-      detailedIssueAnalysis: {
-        'MetaMask + Backpack conflict': hasMetaMask && (hasBackpackEthereum || hasBackpackSolana),
-        'Phantom + Backpack conflict (not dual interface)': hasPhantom && hasBackpackEthereum && !isBackpackProvidingBothInterfaces,
-        'Conflict warning flag': hasConflictWarning,
-        'Backpack not detected': !hasAnyBackpack,
-        'Wrong wallet adapter': wallet.connected && wallet.wallet && !wallet.wallet.adapter.name.includes('Backpack')
-      }
-    });
     
     return { healthy, issues, suggestions };
   };
@@ -1621,7 +1459,7 @@ export default function SimpleGame() {
             }}></div>
             {isConnected ? '🌐 Connected to game servers' : '⚠️ Servers offline - local mode'}
           </div>
-          {isPolling && (
+          {game && game.status !== 'finished' && game.status !== 'abandoned' && (
             <div style={{marginTop: '0.25rem', fontSize: '0.75rem', color: '#10b981'}}>
               🔄 Syncing game state...
             </div>
