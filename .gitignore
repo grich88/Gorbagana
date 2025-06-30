@@ -1,10 +1,7 @@
 # Dependencies
 node_modules/
 frontend/node_modules/
-
-# Rust build artifacts
-target/
-Cargo.lock
+backend/node_modules/
 
 # IDE files
 .vscode/
@@ -27,18 +24,14 @@ Thumbs.db
 # Next.js build output
 frontend/.next/
 frontend/out/
+frontend/tsconfig.tsbuildinfo
 
-# Solana artifacts
-solana-release/
-*.tar.bz2
-rustup-init.exe
+# Deployment cache
+.netlify
 
-# Test artifacts
-.anchor/
-test-ledger/
+# Backend data (fallback storage)
+backend/data/*.json
 
 # Temporary files
 *.tmp
-*.temp 
-# Local Netlify folder
-.netlify
+*.temp
