@@ -7,6 +7,10 @@ const ProductionDatabase = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+console.log('🚀 GORBAGANA TRASH TAC TOE BACKEND STARTING...');
+console.log('🔥 DEPLOYMENT TIMESTAMP:', new Date().toISOString());
+console.log('🚨 COMPREHENSIVE ABANDON LOGGING ENABLED v2.0');
+
 // Initialize database
 const db = new ProductionDatabase();
 
