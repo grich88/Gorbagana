@@ -371,11 +371,12 @@ export default function SimpleGame() {
       if (isPolling) return; // Prevent overlapping polls
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/games/${game.id}?t=${Date.now()}`, {
           cache: 'no-cache', // Force fresh data
           headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         });
         if (!response.ok) {
