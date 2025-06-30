@@ -414,6 +414,32 @@ export default function SimpleGame() {
             DEBUGGING_FULL_GAME: updatedGame
           });
           
+          // 🚨 EMERGENCY DETAILED LOGGING FOR ISSUE DIAGNOSIS 🚨
+          console.log('🚨🚨🚨 EMERGENCY POLL DIAGNOSIS 🚨🚨🚨');
+          console.log('CURRENT GAME STATE:', JSON.stringify({
+            id: game.id,
+            status: game.status,
+            playerX: game.playerX,
+            playerO: game.playerO,
+            hasPlayerO: !!game.playerO
+          }, null, 2));
+          console.log('NEW GAME STATE:', JSON.stringify({
+            id: updatedGame.id,
+            status: updatedGame.status,
+            playerX: updatedGame.playerX,
+            playerO: updatedGame.playerO,
+            hasPlayerO: !!updatedGame.playerO
+          }, null, 2));
+          console.log('STATUS CHANGE CHECK:', {
+            oldStatus: game.status,
+            newStatus: updatedGame.status,
+            statusChanged: game.status !== updatedGame.status,
+            oldPlayerO: game.playerO,
+            newPlayerO: updatedGame.playerO,
+            playerJoined: !game.playerO && !!updatedGame.playerO
+          });
+          console.log('🚨🚨🚨 END EMERGENCY DIAGNOSIS 🚨🚨🚨');
+          
           // Update game state first
           setGame(updatedGame);
 
