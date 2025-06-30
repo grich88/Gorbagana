@@ -233,6 +233,27 @@ class ProductionDatabase {
     }
   }
   
+  // Clean up ALL games for fresh start
+  async cleanupAllGames() {
+    try {
+      if (this.isMongoConnected) {
+        // MongoDB storage - delete all games
+        const result = await GameModel.deleteMany({});
+        console.log(`🧹 Cleaned up ${result.deletedCount} games from MongoDB`);
+        return result.deletedCount;
+      } else {
+        // File storage - reset games file
+        fs.writeFileSync(this.gamesFile, JSON.stringify([]));
+        fs.writeFileSync(this.publicGamesFile, JSON.stringify([]));
+        console.log('🧹 Cleaned up all games from file storage');
+        return 0;
+      }
+    } catch (error) {
+      console.error('❌ Failed to cleanup all games:', error);
+      return 0;
+    }
+  }
+  
   // Cleanup old games (MongoDB or File)
   async cleanupOldGames() {
     const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);

@@ -347,6 +347,14 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
       return res.status(404).json({ error: 'Game not found' });
     }
     
+    console.log(`🎮 Game ${gameId} current state:`, {
+      status: game.status,
+      playerX: game.playerX,
+      playerO: game.playerO,
+      createdAt: new Date(game.createdAt).toISOString(),
+      updatedAt: game.updatedAt ? new Date(game.updatedAt).toISOString() : 'N/A'
+    });
+    
     // Validate that the requester is a player in the game
     const isPlayerX = game.playerX === playerAddress;
     const isPlayerO = game.playerO === playerAddress;
@@ -360,26 +368,34 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
       return res.status(400).json({ error: 'Game cannot be abandoned in current state' });
     }
     
+    // MUCH MORE PERMISSIVE abandonment criteria
     const now = Date.now();
     const gameAge = now - game.createdAt;
     const lastUpdate = game.updatedAt || game.createdAt;
     const timeSinceLastMove = now - lastUpdate;
     
-    // Enhanced abandonment criteria - more permissive for immediate abandonment
-    const GAME_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
-    const MOVE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    const GAME_TIMEOUT = 30 * 60 * 1000; // Reduced to 30 minutes
+    const MOVE_TIMEOUT = 10 * 60 * 1000; // Reduced to 10 minutes
     
-    // Allow abandonment if:
-    // 1. Player explicitly requests it (always allowed)
-    // 2. Game is older than timeout
-    // 3. No moves for timeout period  
-    // 4. Creator can always abandon waiting games
-    // 5. Either player can abandon playing games
+    // Very permissive abandonment - almost always allow it
+    const canAbandon = true; // Always allow abandonment for testing
+    /* 
+    Previous restrictive logic:
     const canAbandon = reason === 'player_request' || 
                       gameAge > GAME_TIMEOUT || 
                       timeSinceLastMove > MOVE_TIMEOUT ||
-                      (isPlayerX && game.status === 'waiting') || // Creator can always abandon waiting games
-                      game.status === 'playing'; // Either player can abandon playing games
+                      (isPlayerX && game.status === 'waiting') || 
+                      game.status === 'playing';
+    */
+    
+    console.log(`🔍 Abandon check:`, {
+      canAbandon,
+      gameAge: Math.round(gameAge / 1000) + 's',
+      timeSinceLastMove: Math.round(timeSinceLastMove / 1000) + 's',
+      isPlayerX,
+      isPlayerO,
+      reason
+    });
     
     if (!canAbandon) {
       return res.status(400).json({ 
@@ -408,6 +424,30 @@ app.post('/api/games/:gameId/abandon', async (req, res) => {
   } catch (error) {
     console.error('Error abandoning game:', error);
     res.status(500).json({ error: 'Failed to abandon game' });
+  }
+});
+
+// Clean database endpoint (admin)
+app.post('/api/admin/cleanup-all', async (req, res) => {
+  try {
+    const { adminKey } = req.body;
+    
+    // Simple admin key check (in production, use proper authentication)
+    if (adminKey !== 'cleanup-trash-tac-toe-2025') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    const deletedCount = await db.cleanupAllGames();
+    console.log(`🧹 ADMIN: Cleaned up ${deletedCount} games from database`);
+    
+    res.json({ 
+      success: true, 
+      message: `Cleaned up ${deletedCount} games`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('Error cleaning up database:', error);
+    res.status(500).json({ error: 'Failed to cleanup database' });
   }
 });
 
